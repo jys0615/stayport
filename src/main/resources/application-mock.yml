@@ -1,0 +1,16 @@
+# 공급사 흉내 서버 전용 프로파일. 본 앱과 포트를 나눠야 통합 테스트에서
+# 실패 원인을 앱 문제로 오해하지 않는다.
+server:
+  port: 9090
+
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: none
+  sql:
+    init:
+      mode: never
+
+stayport:
+  sync:
+    on-startup: false

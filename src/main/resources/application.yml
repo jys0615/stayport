@@ -1,3 +1,47 @@
 spring:
   application:
     name: stayport
+  datasource:
+    url: jdbc:h2:file:./data/stayport;AUTO_SERVER=TRUE
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+  h2:
+    console:
+      enabled: true
+
+server:
+  port: 8080
+
+stayport:
+  search:
+    # 검색 한 건의 전체 예산. 공급사 호출(3s)은 병렬이므로 여기에 병합·직렬화 여유 0.5s를 더했다.
+    total-budget: 3500ms
+  sync:
+    on-startup: true
+  suppliers:
+    a:
+      base-url: ${SUPPLIER_A_BASE_URL:http://localhost:9090}
+      api-key: ${SUPPLIER_A_API_KEY:local-dev-key-a}
+      chunk-size: 50
+      connect-timeout: 1s
+      call-timeout: 3s
+      paths:
+        catalog: /a/v1/hotels
+        availability: /a/v1/availability
+    b:
+      base-url: ${SUPPLIER_B_BASE_URL:http://localhost:9090}
+      api-key: ${SUPPLIER_B_API_KEY:local-dev-key-b}
+      chunk-size: 50
+      connect-timeout: 1s
+      call-timeout: 3s
+      paths:
+        catalog: /b/api/properties
+        availability: /b/api/search
+
+logging:
+  level:
+    io.github.jys0615.stayport: INFO
