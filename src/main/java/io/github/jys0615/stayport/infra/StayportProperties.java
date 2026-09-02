@@ -47,6 +47,14 @@ public record StayportProperties(Search search, Sync sync, Map<SupplierId, Suppl
             Duration connectTimeout,
             Duration callTimeout,
             Paths paths) {
+
+        /** 로그에 남길 때 쓰는 형태. 키 전체가 로그에 흘러가면 회수할 방법이 없다. */
+        public String maskedApiKey() {
+            if (apiKey == null || apiKey.length() <= 4) {
+                return "****";
+            }
+            return "****" + apiKey.substring(apiKey.length() - 4);
+        }
     }
 
     /**
