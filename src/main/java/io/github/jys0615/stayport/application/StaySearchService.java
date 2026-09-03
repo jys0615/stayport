@@ -226,23 +226,30 @@ public class StaySearchService {
     private record Resolved(List<StayOffer> offers, int unmapped) {
     }
 
-    /** {@code (공급사, 숙소 코드, 객실 코드)} 로 매핑을 찾는 색인. */
-    private record MappingIndex(Map<String, MappedRoomType> byKey) {
+    /**
+     * (공급사, 숙소 코드, 객실 코드) → 매핑 색인. 키는 문자열 연결이 아니라 레코드 —
+     * 코드에 구분자 문자가 들어오면 서로 다른 튜플이 한 키로 합쳐질 수 있다.
+     */
+    private record MappingIndex(Map<Key, MappedRoomType> byKey) {
+
+        private record Key(SupplierId supplier, String stayCode, String roomCode) {
+        }
 
         static MappingIndex of(List<MappedRoomType> mappings) {
-            Map<String, MappedRoomType> byKey = new LinkedHashMap<>();
+            Map<Key, MappedRoomType> byKey = new LinkedHashMap<>();
             for (MappedRoomType mapping : mappings) {
-                byKey.put(key(mapping.supplier(), mapping.supplierStayCode(), mapping.supplierRoomCode()), mapping);
+                Key key = new Key(mapping.supplier(), mapping.supplierStayCode(), mapping.supplierRoomCode());
+                MappedRoomType previous = byKey.putIfAbsent(key, mapping);
+                if (previous != null) {
+                    // 중복 키 = DB UNIQUE 제약이 깨졌다는 뜻. 덮어쓰지 않고 바로 실패시킨다.
+                    throw new IllegalStateException("매핑 키가 중복이다: " + key);
+                }
             }
             return new MappingIndex(byKey);
         }
 
         MappedRoomType find(SupplierId supplier, String stayCode, String roomCode) {
-            return byKey.get(key(supplier, stayCode, roomCode));
-        }
-
-        private static String key(SupplierId supplier, String stayCode, String roomCode) {
-            return supplier + " " + stayCode + " " + roomCode;
+            return byKey.get(new Key(supplier, stayCode, roomCode));
         }
     }
 }
