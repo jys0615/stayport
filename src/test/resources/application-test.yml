@@ -1,0 +1,12 @@
+# 테스트 전용 override. 테스트가 ./data 를 만들지 않아야 하고,
+# 기동 시 동기화가 공급사를 부르는 것도 테스트가 직접 통제한다.
+spring:
+  datasource:
+    url: jdbc:h2:mem:stayport-test;DB_CLOSE_DELAY=-1
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+
+stayport:
+  sync:
+    on-startup: false
