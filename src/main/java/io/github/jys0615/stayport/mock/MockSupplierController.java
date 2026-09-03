@@ -45,7 +45,7 @@ class MockSupplierController {
     private static final Duration NO_RESPONSE_DELAY = Duration.ofSeconds(30);
 
     private static final int MAX_CODES = 50;
-    private static final Set<String> MODES = Set.of("normal", "error", "no-response");
+    private static final Set<String> MODES = Set.of("normal", "error", "no-response", "empty-body");
 
     private final Map<String, String> modes = new ConcurrentHashMap<>();
 
@@ -80,6 +80,7 @@ class MockSupplierController {
         return switch (mode("a")) {
             case "error" -> status(HttpStatus.SERVICE_UNAVAILABLE, MockResponses.A_UNAVAILABLE);
             case "no-response" -> hang();
+            case "empty-body" -> emptyBody();
             default -> ResponseEntity.ok(MockResponses.A_HOTELS);
         };
     }
@@ -102,6 +103,7 @@ class MockSupplierController {
         return switch (mode("a")) {
             case "error" -> status(HttpStatus.SERVICE_UNAVAILABLE, MockResponses.A_UNAVAILABLE);
             case "no-response" -> hang();
+            case "empty-body" -> emptyBody();
             default -> ResponseEntity.ok(MockResponses.A_AVAILABILITY);
         };
     }
@@ -116,6 +118,7 @@ class MockSupplierController {
         return switch (mode("b")) {
             case "error" -> ResponseEntity.ok(MockResponses.B_UNAVAILABLE);
             case "no-response" -> hang();
+            case "empty-body" -> emptyBody();
             default -> ResponseEntity.ok(MockResponses.B_PROPERTIES);
         };
     }
@@ -138,6 +141,7 @@ class MockSupplierController {
         return switch (mode("b")) {
             case "error" -> ResponseEntity.ok(MockResponses.B_UNAVAILABLE);
             case "no-response" -> hang();
+            case "empty-body" -> emptyBody();
             default -> ResponseEntity.ok(MockResponses.B_SEARCH);
         };
     }
@@ -158,6 +162,11 @@ class MockSupplierController {
 
     private static ResponseEntity<String> status(HttpStatus status, String body) {
         return ResponseEntity.status(status).body(body);
+    }
+
+    /** 상태는 200인데 본문이 없는 응답. 클라이언트가 이걸 성공으로 접으면 안 된다. */
+    private static ResponseEntity<String> emptyBody() {
+        return ResponseEntity.ok().build();
     }
 
     /** 연결은 붙어 있는데 응답이 오지 않는 상황. 클라이언트의 타임아웃이 발동해야 한다. */

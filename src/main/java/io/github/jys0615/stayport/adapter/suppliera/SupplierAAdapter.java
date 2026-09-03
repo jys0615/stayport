@@ -91,7 +91,11 @@ class SupplierAAdapter implements SupplierAdapter {
             String detail = "HTTP " + response.statusCode().value();
             return response.releaseBody().then(Mono.just(offerFailure(type, detail)));
         }
-        return response.bodyToMono(SupplierAResponses.Availability.class).map(this::toOffers);
+        return response.bodyToMono(SupplierAResponses.Availability.class)
+                .map(this::toOffers)
+                // 위와 같은 이유. 빈 본문을 성공으로 접으면 장애가 "방 0건"으로 둔갑한다.
+                .switchIfEmpty(Mono.fromSupplier(
+                        () -> offerFailure(FailureType.PARSE_ERROR, "2xx인데 응답 본문이 비어 있다")));
     }
 
     private SupplierResult toOffers(SupplierAResponses.Availability body) {
@@ -174,7 +178,12 @@ class SupplierAAdapter implements SupplierAdapter {
             // 본문을 읽지 않고 버리면 커넥션이 반납되지 않는다.
             return response.releaseBody().then(Mono.just(catalogFailure(type, detail)));
         }
-        return response.bodyToMono(SupplierAResponses.Hotels.class).map(this::toCatalog);
+        return response.bodyToMono(SupplierAResponses.Hotels.class)
+                .map(this::toCatalog)
+                // 2xx인데 본문이 없으면 Reactor는 값 없이 완료한다. 그대로 두면 이 호출이
+                // 결과 목록에서 조용히 사라져, 프로토콜 위반이 "숙소 0건"으로 읽힌다.
+                .switchIfEmpty(Mono.fromSupplier(
+                        () -> catalogFailure(FailureType.PARSE_ERROR, "2xx인데 응답 본문이 비어 있다")));
     }
 
     private CatalogResult toCatalog(SupplierAResponses.Hotels body) {

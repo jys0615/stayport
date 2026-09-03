@@ -94,7 +94,11 @@ class SupplierBAdapter implements SupplierAdapter {
             return response.releaseBody()
                     .then(Mono.just(offerFailure(type, "HTTP " + response.statusCode().value())));
         }
-        return response.bodyToMono(SupplierBResponses.Search.class).map(this::toOffers);
+        return response.bodyToMono(SupplierBResponses.Search.class)
+                .map(this::toOffers)
+                // 위와 같은 이유. B는 실패도 200으로 주므로 빈 본문을 성공으로 접으면 더 위험하다.
+                .switchIfEmpty(Mono.fromSupplier(
+                        () -> offerFailure(FailureType.PARSE_ERROR, "2xx인데 응답 본문이 비어 있다")));
     }
 
     private SupplierResult toOffers(SupplierBResponses.Search body) {
@@ -162,7 +166,12 @@ class SupplierBAdapter implements SupplierAdapter {
             return response.releaseBody()
                     .then(Mono.just(catalogFailure(type, "HTTP " + response.statusCode().value())));
         }
-        return response.bodyToMono(SupplierBResponses.Properties.class).map(this::toCatalog);
+        return response.bodyToMono(SupplierBResponses.Properties.class)
+                .map(this::toCatalog)
+                // 2xx인데 본문이 없으면 Reactor는 값 없이 완료한다. 그대로 두면 이 호출이
+                // 결과 목록에서 조용히 사라져, 프로토콜 위반이 "숙소 0건"으로 읽힌다.
+                .switchIfEmpty(Mono.fromSupplier(
+                        () -> catalogFailure(FailureType.PARSE_ERROR, "2xx인데 응답 본문이 비어 있다")));
     }
 
     private CatalogResult toCatalog(SupplierBResponses.Properties body) {
