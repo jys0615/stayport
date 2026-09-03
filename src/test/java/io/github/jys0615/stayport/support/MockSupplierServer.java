@@ -34,14 +34,16 @@ public final class MockSupplierServer {
     /** 아직 안 떴으면 띄우고, 주소를 돌려준다. */
     public static synchronized String baseUrl() {
         if (context == null) {
+            // 명령행 인자로 넘긴다. SpringApplicationBuilder.properties()는 기본 프로퍼티라
+            // 우선순위가 가장 낮아서 application-mock.yml의 server.port: 9090에 밀린다.
+            // 그러면 테스트가 9090을 점유하게 되고, 그 포트를 쓰는 무언가가 떠 있으면 실패한다.
             context = new SpringApplicationBuilder(StayportApplication.class)
                     .profiles("mock")
-                    .properties(
-                            "server.port=0",
-                            "spring.datasource.url=jdbc:h2:mem:mock-supplier-test",
-                            "spring.jpa.hibernate.ddl-auto=none",
-                            "stayport.sync.on-startup=false")
-                    .run();
+                    .run(
+                            "--server.port=0",
+                            "--spring.datasource.url=jdbc:h2:mem:mock-supplier-test",
+                            "--spring.jpa.hibernate.ddl-auto=none",
+                            "--stayport.sync.on-startup=false");
             Integer assigned = context.getEnvironment().getProperty("local.server.port", Integer.class);
             if (assigned == null) {
                 throw new IllegalStateException("흉내 서버 포트를 알 수 없다");
