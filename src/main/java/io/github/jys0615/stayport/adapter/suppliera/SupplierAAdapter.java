@@ -1,16 +1,22 @@
 package io.github.jys0615.stayport.adapter.suppliera;
 
+import io.github.jys0615.stayport.adapter.ChunkedOffers;
 import io.github.jys0615.stayport.adapter.SupplierErrors;
 import io.github.jys0615.stayport.application.port.CatalogResult;
 import io.github.jys0615.stayport.application.port.FailureType;
 import io.github.jys0615.stayport.application.port.SupplierAdapter;
+import io.github.jys0615.stayport.application.port.SupplierOffer;
 import io.github.jys0615.stayport.application.port.SupplierResult;
 import io.github.jys0615.stayport.application.port.SupplierRoomType;
 import io.github.jys0615.stayport.application.port.SupplierStay;
+import io.github.jys0615.stayport.domain.DailyRate;
+import io.github.jys0615.stayport.domain.Price;
 import io.github.jys0615.stayport.domain.SearchQuery;
 import io.github.jys0615.stayport.domain.SupplierId;
 import io.github.jys0615.stayport.infra.StayportProperties;
 import io.github.jys0615.stayport.infra.SupplierWebClients;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;
@@ -18,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 /**
@@ -52,7 +59,112 @@ class SupplierAAdapter implements SupplierAdapter {
 
     @Override
     public Mono<SupplierResult> fetchOffers(SearchQuery query, List<String> stayCodes) {
-        throw new UnsupportedOperationException("재고·요금 조회는 아직 구현되지 않았다");
+        if (stayCodes.isEmpty()) {
+            // 물어볼 것이 없으면 부르지 않는다. 빈 목록으로 호출하면 공급사가 400을 준다.
+            return Mono.just(SupplierResult.Success.of(SupplierId.A, List.of()));
+        }
+        return Flux.fromIterable(ChunkedOffers.split(stayCodes, config.chunkSize()))
+                .flatMap(chunk -> fetchChunk(query, chunk))
+                .collectList()
+                .map(results -> ChunkedOffers.merge(SupplierId.A, results));
+    }
+
+    /** 한도 이하의 코드 묶음 하나를 조회한다. 실패는 예외가 아니라 이 묶음의 결과로 돌아온다. */
+    private Mono<SupplierResult> fetchChunk(SearchQuery query, List<String> stayCodes) {
+        return client.get()
+                .uri(builder -> builder.path(config.paths().availability())
+                        .queryParam("hotelCodes", String.join(",", stayCodes))
+                        .queryParam("checkIn", query.checkIn())
+                        .queryParam("checkOut", query.checkOut())
+                        .queryParam("adults", query.adults())
+                        .queryParam("children", query.children())
+                        .build())
+                .exchangeToMono(this::readOffers)
+                .timeout(config.callTimeout())
+                .onErrorResume(error -> Mono.just(offerFailure(SupplierErrors.classify(error),
+                        error.getClass().getSimpleName())));
+    }
+
+    private Mono<SupplierResult> readOffers(ClientResponse response) {
+        if (!response.statusCode().is2xxSuccessful()) {
+            FailureType type = SupplierErrors.classify(response.statusCode());
+            String detail = "HTTP " + response.statusCode().value();
+            return response.releaseBody().then(Mono.just(offerFailure(type, detail)));
+        }
+        return response.bodyToMono(SupplierAResponses.Availability.class).map(this::toOffers);
+    }
+
+    private SupplierResult toOffers(SupplierAResponses.Availability body) {
+        if (body == null || body.items() == null) {
+            return offerFailure(FailureType.PARSE_ERROR, "items가 없다");
+        }
+
+        List<SupplierOffer> offers = new ArrayList<>();
+        int skipped = 0;
+        for (SupplierAResponses.Item item : body.items()) {
+            SupplierOffer offer = toOffer(item);
+            if (offer == null) {
+                skipped++;
+                continue;
+            }
+            offers.add(offer);
+        }
+
+        if (skipped > 0) {
+            log.warn("supplier A 재고·요금에서 {}건을 건너뜀 (사용 가능 {}건)", skipped, offers.size());
+        }
+        return new SupplierResult.Success(SupplierId.A, offers, skipped);
+    }
+
+    /**
+     * 상품 1건을 표준 형태로 접는다. 형태가 이상하면 {@code null}을 돌려 그 건만 버린다 —
+     * 상품 하나 때문에 공급사 전체를 실패로 만드는 건 과하다.
+     */
+    private SupplierOffer toOffer(SupplierAResponses.Item item) {
+        if (isBlank(item.hotelCode()) || isBlank(item.roomTypeCode())
+                || item.dailyRates() == null || item.dailyRates().isEmpty()) {
+            return null;
+        }
+
+        List<DailyRate> breakdown = new ArrayList<>(item.dailyRates().size());
+        long total = 0;
+        int availableRooms = Integer.MAX_VALUE;
+
+        for (SupplierAResponses.DailyRate rate : item.dailyRates()) {
+            LocalDate date = parseDate(rate.date());
+            if (date == null) {
+                return null;
+            }
+            // 그날 고객이 내는 금액은 net + tax다. 총액은 그것의 합.
+            breakdown.add(DailyRate.decomposed(date, rate.nightlyRate(), rate.taxAmount()));
+            total += rate.nightlyRate() + rate.taxAmount();
+            // 기간 전체를 예약할 수 있는 수는 날짜별 잔여의 최솟값이다.
+            availableRooms = Math.min(availableRooms, rate.remainingRooms());
+        }
+
+        return new SupplierOffer(
+                item.hotelCode(),
+                item.hotelName(),
+                item.roomTypeCode(),
+                item.roomTypeName(),
+                item.maxOccupancy(),
+                availableRooms,
+                item.breakfastIncluded(),
+                new Price(total, item.currency(), breakdown));
+    }
+
+    private LocalDate parseDate(String value) {
+        try {
+            return LocalDate.parse(value);
+        } catch (DateTimeParseException | NullPointerException e) {
+            log.warn("supplier A 응답의 날짜를 읽을 수 없다: {}", value);
+            return null;
+        }
+    }
+
+    private SupplierResult offerFailure(FailureType type, String detail) {
+        log.warn("supplier A 재고·요금 조회 실패: {} ({})", type, detail);
+        return new SupplierResult.Failure(SupplierId.A, type, detail);
     }
 
     private Mono<CatalogResult> readCatalog(ClientResponse response) {

@@ -1,12 +1,15 @@
 package io.github.jys0615.stayport.adapter.supplierb;
 
+import io.github.jys0615.stayport.adapter.ChunkedOffers;
 import io.github.jys0615.stayport.adapter.SupplierErrors;
 import io.github.jys0615.stayport.application.port.CatalogResult;
 import io.github.jys0615.stayport.application.port.FailureType;
 import io.github.jys0615.stayport.application.port.SupplierAdapter;
+import io.github.jys0615.stayport.application.port.SupplierOffer;
 import io.github.jys0615.stayport.application.port.SupplierResult;
 import io.github.jys0615.stayport.application.port.SupplierRoomType;
 import io.github.jys0615.stayport.application.port.SupplierStay;
+import io.github.jys0615.stayport.domain.Price;
 import io.github.jys0615.stayport.domain.SearchQuery;
 import io.github.jys0615.stayport.domain.SupplierId;
 import io.github.jys0615.stayport.infra.StayportProperties;
@@ -18,6 +21,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 /**
@@ -58,7 +62,97 @@ class SupplierBAdapter implements SupplierAdapter {
 
     @Override
     public Mono<SupplierResult> fetchOffers(SearchQuery query, List<String> stayCodes) {
-        throw new UnsupportedOperationException("재고·요금 조회는 아직 구현되지 않았다");
+        if (stayCodes.isEmpty()) {
+            // 물어볼 것이 없으면 부르지 않는다. 빈 목록으로 호출하면 공급사가 400을 준다.
+            return Mono.just(SupplierResult.Success.of(SupplierId.B, List.of()));
+        }
+        return Flux.fromIterable(ChunkedOffers.split(stayCodes, config.chunkSize()))
+                .flatMap(chunk -> fetchChunk(query, chunk))
+                .collectList()
+                .map(results -> ChunkedOffers.merge(SupplierId.B, results));
+    }
+
+    /** 한도 이하의 코드 묶음 하나를 조회한다. 실패는 예외가 아니라 이 묶음의 결과로 돌아온다. */
+    private Mono<SupplierResult> fetchChunk(SearchQuery query, List<String> stayCodes) {
+        return client.get()
+                .uri(builder -> builder.path(config.paths().availability())
+                        .queryParam("propertyIds", String.join(",", stayCodes))
+                        .queryParam("checkIn", query.checkIn())
+                        .queryParam("checkOut", query.checkOut())
+                        .queryParam("adults", query.adults())
+                        .queryParam("children", query.children())
+                        .build())
+                .exchangeToMono(this::readOffers)
+                .timeout(config.callTimeout())
+                .onErrorResume(error -> Mono.just(offerFailure(SupplierErrors.classify(error),
+                        error.getClass().getSimpleName())));
+    }
+
+    private Mono<SupplierResult> readOffers(ClientResponse response) {
+        if (!response.statusCode().is2xxSuccessful()) {
+            FailureType type = SupplierErrors.classify(response.statusCode());
+            return response.releaseBody()
+                    .then(Mono.just(offerFailure(type, "HTTP " + response.statusCode().value())));
+        }
+        return response.bodyToMono(SupplierBResponses.Search.class).map(this::toOffers);
+    }
+
+    private SupplierResult toOffers(SupplierBResponses.Search body) {
+        if (body == null || body.resultCode() == null) {
+            return offerFailure(FailureType.PARSE_ERROR, "resultCode가 없다");
+        }
+        if (!SUCCESS.equals(body.resultCode())) {
+            // HTTP는 200이었다. 여기서 걸러내지 않으면 장애가 "방 0건"으로 나간다.
+            return offerFailure(classify(body.resultCode()), body.resultCode() + " " + body.resultMessage());
+        }
+        if (body.data() == null || body.data().items() == null) {
+            return offerFailure(FailureType.PARSE_ERROR, "resultCode는 0000인데 data가 비어 있다");
+        }
+
+        List<SupplierOffer> offers = new ArrayList<>();
+        int skipped = 0;
+        for (SupplierBResponses.Item item : body.data().items()) {
+            SupplierOffer offer = toOffer(item);
+            if (offer == null) {
+                skipped++;
+                continue;
+            }
+            offers.add(offer);
+        }
+
+        if (skipped > 0) {
+            log.warn("supplier B 재고·요금에서 {}건을 건너뜀 (사용 가능 {}건)", skipped, offers.size());
+        }
+        return new SupplierResult.Success(SupplierId.B, offers, skipped);
+    }
+
+    private SupplierOffer toOffer(SupplierBResponses.Item item) {
+        if (isBlank(item.propertyId()) || isBlank(item.roomId())
+                || item.inventory() == null || item.inventory().isEmpty()) {
+            return null;
+        }
+
+        int availableRooms = Integer.MAX_VALUE;
+        for (SupplierBResponses.Inventory night : item.inventory()) {
+            availableRooms = Math.min(availableRooms, night.remainingRooms());
+        }
+
+        return new SupplierOffer(
+                item.propertyId(),
+                item.propertyName(),
+                item.roomId(),
+                item.roomName(),
+                item.maxOccupancy(),
+                availableRooms,
+                item.breakfastIncluded(),
+                // totalPrice는 이미 기간 전체의 세금 포함 총액이다. 곱하거나 나누지 않는다.
+                // 날짜별 분해는 주지 않으므로 dailyBreakdown은 비운다 — 없는 값을 만들지 않는다.
+                Price.of(item.totalPrice(), item.currency()));
+    }
+
+    private SupplierResult offerFailure(FailureType type, String detail) {
+        log.warn("supplier B 재고·요금 조회 실패: {} ({})", type, detail);
+        return new SupplierResult.Failure(SupplierId.B, type, detail);
     }
 
     private Mono<CatalogResult> readCatalog(ClientResponse response) {
