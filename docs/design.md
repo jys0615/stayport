@@ -12,10 +12,11 @@
 > | 표준 모델·포트 계약 (`domain`, `application/port`) | 있음 |
 > | 설정 외부화 (`StayportProperties`, `application.yml`) | 있음 |
 > | 매핑 엔티티·저장소·동기화 (`POST /internal/sync`) | 있음 |
-> | 공급사 어댑터 | **숙소 목록만** — 재고·요금(`fetchOffers`)은 미구현 |
+> | 공급사 어댑터 — 숙소 목록, 재고·요금, 청크 분할 | 있음 |
 > | 공급사 흉내 서버 (`mock` 프로파일, 9090) | 있음 |
-> | 통합 검색 API | 미구현 |
-> | ArchUnit 경계 테스트, 자동화된 통합 테스트, 지표 계측 | 미구현 |
+> | 정규화·청크 분할 테스트 (흉내 서버를 실제 HTTP로 호출) | 있음 |
+> | 통합 검색 API (병렬 호출·병합·부분 실패 응답) | 미구현 |
+> | ArchUnit 경계 테스트, 지표 계측 | 미구현 |
 >
 > 구현이 끝난 뒤 이 표를 지우고 문서와 코드를 한 번 대조한다. 대조에서 어긋난 것이 나오면
 > 문서가 아니라 둘 중 틀린 쪽을 고친다.
@@ -205,14 +206,16 @@ room_type_mapping  (supplier, supplier_stay_code, supplier_room_code) → intern
 이 값들은 전부 `application.yml`에 있다. 타임아웃은 운영하면서 조정될 게 뻔한 값이라 상수로
 박아두면 바꿀 때마다 재배포해야 한다. 청크 크기, 공급사 주소, API 키도 같은 이유로 프로퍼티다.
 
-무응답 상황의 통합 테스트에서는 부분 실패 응답이 나오는지만 볼 게 아니라 **총 경과 시간이 3.5초
-언저리에서 끊기는지**도 같이 재야 한다. 아직 안 쟀다.
+무응답에서 공급사 호출 하나가 3초에 끊기는 것은 경과 시간까지 재서 테스트로 고정했다.
+**검색 API 전체 예산 3.5초는 아직 안 쟀다** — 통합 검색이 있어야 병합·직렬화까지 포함한 시간을
+잴 수 있다. 그때까지 3.5초는 임시값이다.
 
 ### 50개 제한과 그 너머
 
 두 공급사 모두 한 번에 조회할 수 있는 숙소 코드가 50개다. 코드 목록을 50개 단위로 잘라 병렬로
-부른다. 지금 데이터로는 1청크라 실제 분할이 일어나지 않는다. 그래서 오히려 경계가 안 밟히는데,
-50·51개 케이스를 테스트로 고정해 둘 생각이다.
+부른다. 지금 데이터로는 1청크라 실제 분할이 일어나지 않는다. 그래서 오히려 경계가 안 밟힌다 —
+흉내 서버가 51개를 거절하게 만들고 50·51개 케이스를 테스트로 고정해 뒀다. 나누지 않으면
+테스트가 실패한다.
 
 숙소가 수천 개가 되면 청크 수만큼 호출이 늘어 3.5초 예산 안에 못 들어온다. 그 지점에서는 실시간
 전량 조회 자체를 포기해야 한다 — 공급사별 동시 호출 상한을 두고, 인기 숙소 위주로 사전 집계한
@@ -225,7 +228,9 @@ room_type_mapping  (supplier, supplier_stay_code, supplier_room_code) → intern
 
 ```java
 sealed interface SupplierResult {
-    record Success(SupplierId supplier, List<StayOffer> offers, int skippedItems) ...
+    record Success(SupplierId supplier, List<SupplierOffer> offers, int skippedItems) ...
+    record Partial(SupplierId supplier, List<SupplierOffer> offers, int skippedItems,
+                   int failedChunks, Map<FailureType, Integer> failures) ...
     record Failure(SupplierId supplier, FailureType type, String detail) ...
 }
 ```
@@ -233,6 +238,31 @@ sealed interface SupplierResult {
 부분 실패를 허용한다는 건 "한쪽이 실패해도 나머지로 응답한다"인데, 실패가 예외로 올라오면 호출부는
 try-catch로 흐름을 끊어야 한다. 값으로 받으면 병합 단계에서 성공만 골라 담는 것으로 끝난다.
 `onErrorResume`으로 어댑터 안에서 모든 오류를 `Failure`로 접는 이유다.
+
+세 갈래는 응답 계약의 `OK | PARTIAL | FAILED`와 일대일로 대응한다(§7). 상태를 문서에만 정의해
+두면 코드에서 그 상태가 어디서 생기는지 흐려지므로, 타입이 계약을 그대로 비추게 했다.
+
+### 실패 요약은 호출 순서에 의존하지 않아야 한다
+
+`Partial`은 실패를 하나로 줄이지 않고 **유형별 개수**를 담는다. 청크는 병렬로 나가고 끝나는
+순서가 매번 다르기 때문에, 요약을 "먼저 끝난 실패"로 정하면 같은 요청이 실행마다 다른 분류를
+내놓는다. 그러면 클라이언트의 재시도 판단이 비결정적이 된다.
+
+하나로 줄여야 하는 자리(모든 청크가 실패해 `Failure`가 될 때)에서는 `FailureType`의 선언
+순서를 우선순위로 쓴다. 기준은 **재시도해도 달라지지 않는 것을 먼저 알린다**다 —
+`AUTH`·`INVALID_REQUEST`·`PARSE_ERROR`가 `RATE_LIMIT`·`SUPPLIER_ERROR`·`TIMEOUT`보다 앞선다.
+"타임아웃 3건과 인증 실패 1건"을 "타임아웃"으로 요약하면, 정작 우리가 고쳐야 할 인증 문제가
+일시적 장애로 읽힌다.
+
+### 어댑터가 내놓는 것은 아직 공급사 코드다
+
+`Success`가 담는 것은 `StayOffer`(내부 식별자를 가진 최종 형태)가 아니라 `SupplierOffer`다.
+**어댑터는 매핑을 모른다.** 어댑터에 매핑을 넘겨주면 공급사 연동이 우리 저장소를 알게 되므로,
+경계에서 한 번 갈아탄다 — 어댑터는 정규화(요금 합산, 재고 min, 조식 보존)까지 끝내고 공급사 코드로
+내놓고, 유스케이스가 그것을 내부 식별자로 바꿔 최종 응답을 만든다.
+
+이 구분은 §4의 이름 스냅샷 결정과도 맞물린다. 어댑터가 준 숙소명은 표시에 쓰지 않는다.
+표시 값은 매핑에 저장된 스냅샷이 정본이므로, 유스케이스가 갈아타는 그 지점에서 이름도 함께 바뀐다.
 
 ### 판정 통일
 
