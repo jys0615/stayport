@@ -9,9 +9,6 @@ import java.util.Map;
 
 /**
  * 통합 검색 한 번의 결과.
- *
- * @param stays     내부 식별자까지 해석이 끝난 상품들. 여러 공급사의 결과가 섞여 있다
- * @param suppliers 공급사별로 어디까지 받았는지
  */
 public record SearchResult(List<StayOffer> stays, List<SupplierOutcome> suppliers) {
 
@@ -21,10 +18,8 @@ public record SearchResult(List<StayOffer> stays, List<SupplierOutcome> supplier
     }
 
     /**
-     * @param returnedOffers 이 공급사에서 결과로 들어간 상품 수
-     * @param skippedItems   형태가 깨졌거나 매핑이 없어 버린 상품 수. 조용한 손실을 드러낸다
-     * @param failedChunks   나눠 부른 것 중 실패한 묶음 수
-     * @param failures       실패 유형별 개수. 하나로 요약하지 않는다
+     * @param skippedItems 형태가 깨졌거나 매핑이 없어 버린 상품 수
+     * @param failures     실패 유형별 개수
      */
     public record SupplierOutcome(
             SupplierId supplier,

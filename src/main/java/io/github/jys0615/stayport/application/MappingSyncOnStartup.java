@@ -8,13 +8,8 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 /**
- * 기동 직후 매핑을 한 번 맞춘다.
- *
- * <p><b>실패해도 예외를 밖으로 던지지 않는다.</b> 공급사 한 곳의 장애로 서비스 전체가 기동조차
- * 못 하는 건 과한 결합이고, 기존 매핑이 이미 있으면 그것으로 계속 서비스할 수 있다.
- *
- * <p>첫 실행과 공급사 장애가 겹치면 매핑이 빈 상태로 남는다. 그때 검색은 빈 결과를 주는 대신
- * 해당 공급사를 실패로 표시한다 — "물어볼 게 없어서 없다"와 "물어봤는데 없다"는 다른 사실이다.
+ * 기동 직후 동기화 1회. 실패해도 예외를 던지지 않는다 — 앱은 뜨고, 복구는
+ * POST /internal/sync (design.md §4).
  */
 @Component
 class MappingSyncOnStartup {

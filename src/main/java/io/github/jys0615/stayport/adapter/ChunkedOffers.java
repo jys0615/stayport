@@ -10,12 +10,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 숙소 코드를 공급사 호출 한도에 맞게 나누고, 나눠 부른 결과를 하나로 합친다.
- *
- * <p>나누는 것은 어댑터의 일이다. 한도는 공급사마다 다를 수 있는 공급사 사정이고, 이미 공급사별
- * 설정으로 들어와 있다. 유스케이스가 "50개씩 잘라라"를 알면 그 값이 경계를 넘는다.
- *
- * <p>합치는 규칙은 두 공급사가 같으므로 여기 모았다.
+ * 숙소 코드를 호출 한도(공급사별 설정)에 맞게 나누고, 묶음별 결과를 합친다.
+ * 분할이 어댑터 계층의 일인 이유: design.md §5.
  */
 public final class ChunkedOffers {
 
@@ -35,15 +31,9 @@ public final class ChunkedOffers {
     }
 
     /**
-     * 묶음별 결과를 공급사 하나의 결과로 합친다.
-     *
-     * <p>전부 성공하면 성공, 전부 실패하면 실패, 섞이면 {@code Partial}이다. 섞였을 때 전체를
-     * 실패로 접지 않는 이유는, 그러면 이미 받은 절반을 버리게 되고 클라이언트가 "일부는 받았다"를
-     * 알 방법이 없어지기 때문이다.
-     *
-     * <p><b>결과가 호출 완료 순서에 의존하지 않는다.</b> 묶음은 병렬로 나가고 끝나는 순서는
-     * 매번 다르므로, 실패 요약을 "먼저 끝난 실패"로 정하면 같은 요청이 실행마다 다른 분류를
-     * 내놓는다. 그래서 유형별 개수를 세어 담고, 하나로 줄여야 할 때는 선언된 우선순위로 고른다.
+     * 묶음별 결과 합치기: 전부 성공=Success, 전부 실패=Failure, 섞임=Partial(받은 것 유지).
+     * 결과는 호출 완료 순서와 무관하다 — 실패는 유형별 개수로 담고, 하나로 줄일 때는
+     * FailureType 선언 순서를 쓴다. 회귀 테스트: ChunkSplitTest.
      */
     public static SupplierResult merge(SupplierId supplier, List<SupplierResult> chunkResults) {
         List<SupplierOffer> offers = new ArrayList<>();
@@ -59,7 +49,7 @@ public final class ChunkedOffers {
                 case SupplierResult.Failure failure ->
                         failures.merge(failure.type(), 1, Integer::sum);
                 case SupplierResult.Partial partial ->
-                        // 묶음 하나의 결과가 Partial일 수는 없다. 들어오면 삼키지 않고 드러낸다.
+                        // 묶음 하나의 결과로는 나올 수 없는 값.
                         throw new IllegalArgumentException("묶음 결과에 Partial이 올 수 없다: " + partial.supplier());
             }
         }

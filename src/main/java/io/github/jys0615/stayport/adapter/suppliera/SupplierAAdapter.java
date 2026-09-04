@@ -27,9 +27,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-/**
- * Supplier A 어댑터. 실패를 HTTP 상태 코드로 알리는 쪽이다.
- */
+/** Supplier A 어댑터 — 실패를 HTTP 상태 코드로 알린다. */
 @Component
 class SupplierAAdapter implements SupplierAdapter {
 
@@ -93,7 +91,7 @@ class SupplierAAdapter implements SupplierAdapter {
         }
         return response.bodyToMono(SupplierAResponses.Availability.class)
                 .map(this::toOffers)
-                // 위와 같은 이유. 빈 본문을 성공으로 접으면 장애가 "방 0건"으로 둔갑한다.
+                // readCatalog와 같은 이유.
                 .switchIfEmpty(Mono.fromSupplier(
                         () -> offerFailure(FailureType.PARSE_ERROR, "2xx인데 응답 본문이 비어 있다")));
     }
@@ -120,10 +118,7 @@ class SupplierAAdapter implements SupplierAdapter {
         return new SupplierResult.Success(SupplierId.A, offers, skipped);
     }
 
-    /**
-     * 상품 1건을 표준 형태로 접는다. 형태가 이상하면 {@code null}을 돌려 그 건만 버린다 —
-     * 상품 하나 때문에 공급사 전체를 실패로 만드는 건 과하다.
-     */
+    /** 상품 1건 정규화. 형태가 이상하면 null — 그 건만 스킵된다. */
     private SupplierOffer toOffer(SupplierAResponses.Item item) {
         if (isBlank(item.hotelCode()) || isBlank(item.roomTypeCode())
                 || item.dailyRates() == null || item.dailyRates().isEmpty()) {
@@ -139,10 +134,9 @@ class SupplierAAdapter implements SupplierAdapter {
             if (date == null) {
                 return null;
             }
-            // 그날 고객이 내는 금액은 net + tax다. 총액은 그것의 합.
+            // nightlyRate는 net — 고객 결제액은 net + tax.
             breakdown.add(DailyRate.decomposed(date, rate.nightlyRate(), rate.taxAmount()));
             total += rate.nightlyRate() + rate.taxAmount();
-            // 기간 전체를 예약할 수 있는 수는 날짜별 잔여의 최솟값이다.
             availableRooms = Math.min(availableRooms, rate.remainingRooms());
         }
 
@@ -175,13 +169,12 @@ class SupplierAAdapter implements SupplierAdapter {
         if (!response.statusCode().is2xxSuccessful()) {
             FailureType type = SupplierErrors.classify(response.statusCode());
             String detail = "HTTP " + response.statusCode().value();
-            // 본문을 읽지 않고 버리면 커넥션이 반납되지 않는다.
+            // releaseBody 없이 버리면 커넥션이 반납되지 않는다.
             return response.releaseBody().then(Mono.just(catalogFailure(type, detail)));
         }
         return response.bodyToMono(SupplierAResponses.Hotels.class)
                 .map(this::toCatalog)
-                // 2xx인데 본문이 없으면 Reactor는 값 없이 완료한다. 그대로 두면 이 호출이
-                // 결과 목록에서 조용히 사라져, 프로토콜 위반이 "숙소 0건"으로 읽힌다.
+                // 2xx + 빈 본문이면 bodyToMono가 값 없이 완료한다. 성공으로 처리하면 안 된다.
                 .switchIfEmpty(Mono.fromSupplier(
                         () -> catalogFailure(FailureType.PARSE_ERROR, "2xx인데 응답 본문이 비어 있다")));
     }
@@ -202,7 +195,6 @@ class SupplierAAdapter implements SupplierAdapter {
             stays.add(new SupplierStay(hotel.hotelCode(), hotel.hotelName(), roomTypes));
         }
 
-        // 목록 한 건이 이상해도 나머지는 쓴다. 대신 버린 사실은 남긴다.
         if (skipped > 0) {
             log.warn("supplier A 숙소 목록에서 {}건을 건너뜀 (사용 가능 {}건)", skipped, stays.size());
         }

@@ -6,26 +6,19 @@ import java.util.List;
 import reactor.core.publisher.Mono;
 
 /**
- * 공급사 연동의 유일한 통로.
+ * 공급사 연동 포트. 새 공급사 추가 = 이 인터페이스 구현체 + 설정 등록 (도메인·API 무변경).
  *
- * <p>새 공급사를 붙일 때 손대는 곳은 이 인터페이스의 구현체와 설정 등록뿐이다.
- * 도메인과 API 계층은 바뀌지 않는다.
- *
- * <p>두 메서드 모두 예외를 던지지 않고 결과 타입으로 실패를 돌려준다. 호출부가
- * try-catch 대신 값으로 부분 실패를 다루게 하기 위해서다.
+ * <p>계약: 두 메서드 모두 예외를 던지지 않는다. 실패는 결과 타입의 Failure로 돌려준다.
  */
 public interface SupplierAdapter {
 
     SupplierId supplier();
 
-    /** 숙소·객실 타입 전체 목록. 매핑 동기화에서만 쓴다. */
+    /** 숙소·객실 타입 전체 목록 — 매핑 동기화용. */
     Mono<CatalogResult> fetchCatalog();
 
     /**
-     * 재고·요금 조회.
-     *
-     * @param query      검색 조건
-     * @param stayCodes  조회할 공급사 숙소 코드. 공급사 1회 호출 한도(50개) 이하로 잘라서 넘긴다
+     * 재고·요금 조회. 한도 초과 코드 목록은 어댑터가 나눠 부른다.
      */
     Mono<SupplierResult> fetchOffers(SearchQuery query, List<String> stayCodes);
 }

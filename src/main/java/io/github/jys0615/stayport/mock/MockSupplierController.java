@@ -20,20 +20,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 공급사 흉내 서버. 요청 파라미터를 무시하고 고정 응답을 준다.
+ * 공급사 흉내 서버 — mock 프로파일에서 9090으로만 뜬다. 요청 내용과 무관하게 고정 응답.
  *
- * <p>안내받은 뼈대에서 세 가지를 늘렸다. 셋 다 우리 쪽 설계 결정을 실제로 검증하기 위해서다.
- *
- * <ol>
- *   <li><b>숙소 목록에도 장애 모드</b> — "기동 시 동기화가 실패해도 앱은 뜬다"는 결정을 확인할
- *       방법이 없으면 그 결정은 문서에만 남는다.
- *   <li><b>{@code X-Api-Key} 필수</b> — 없으면 A는 401, B는 200+E401. 헤더 주입을 단위 테스트의
- *       assert가 아니라 연동 경로에서 확인하게 된다.
- *   <li><b>코드 목록 50개 초과 거절</b> — 청크 분할이 실제로 일어나지 않으면 실패하도록 만들었다.
- *       현재 데이터는 1청크뿐이라 이게 없으면 경계가 영원히 안 밟힌다.
- * </ol>
- *
- * <p>채점 대상이 아니다. {@code mock} 프로파일에서 9090으로만 뜬다.
+ * <p>제공 뼈대에서 늘린 것: 숙소 목록 장애 모드, X-Api-Key 필수(A 401 / B 200+E401),
+ * 코드 50개 초과 거절, empty-body 모드. 각각이 무엇을 검증하는지는 테스트 클래스 참조.
  */
 @RestController
 @Profile("mock")
@@ -41,7 +31,7 @@ class MockSupplierController {
 
     private static final Logger log = LoggerFactory.getLogger(MockSupplierController.class);
 
-    /** 클라이언트 타임아웃(3s)을 넉넉히 넘기되, 스레드를 10분씩 잡아두진 않는 값. */
+    /** 클라이언트 타임아웃(3s)보다 충분히 긴 값. */
     private static final Duration NO_RESPONSE_DELAY = Duration.ofSeconds(30);
 
     private static final int MAX_CODES = 50;
@@ -49,7 +39,7 @@ class MockSupplierController {
 
     private final Map<String, String> modes = new ConcurrentHashMap<>();
 
-    // ── 고장 스위치 ──────────────────────────────────────────────────────────
+    // ── 고장 스위치 ──
 
     @PostMapping("/control/{supplier}/mode")
     ResponseEntity<Map<String, String>> setMode(@PathVariable String supplier, @RequestParam String value) {
@@ -70,7 +60,7 @@ class MockSupplierController {
         return snapshot;
     }
 
-    // ── Supplier A — 실패를 HTTP 상태로 알린다 ───────────────────────────────
+    // ── Supplier A ──
 
     @GetMapping(value = "/a/v1/hotels", produces = APPLICATION_JSON_VALUE)
     ResponseEntity<String> hotelsA(@RequestHeader(value = "X-Api-Key", required = false) String apiKey) {
@@ -108,7 +98,7 @@ class MockSupplierController {
         };
     }
 
-    // ── Supplier B — 장애에도 HTTP 200을 주고 본문 resultCode로만 알린다 ─────
+    // ── Supplier B — 장애에도 200 + resultCode ──
 
     @GetMapping(value = "/b/api/properties", produces = APPLICATION_JSON_VALUE)
     ResponseEntity<String> propertiesB(@RequestHeader(value = "X-Api-Key", required = false) String apiKey) {
@@ -146,7 +136,7 @@ class MockSupplierController {
         };
     }
 
-    // ── 거들기 ──────────────────────────────────────────────────────────────
+    // ── 헬퍼 ──
 
     private String mode(String supplier) {
         return modes.getOrDefault(supplier, "normal");
@@ -164,12 +154,12 @@ class MockSupplierController {
         return ResponseEntity.status(status).body(body);
     }
 
-    /** 상태는 200인데 본문이 없는 응답. 클라이언트가 이걸 성공으로 접으면 안 된다. */
+    /** 200 + 빈 본문. */
     private static ResponseEntity<String> emptyBody() {
         return ResponseEntity.ok().build();
     }
 
-    /** 연결은 붙어 있는데 응답이 오지 않는 상황. 클라이언트의 타임아웃이 발동해야 한다. */
+    /** 연결은 유지한 채 응답을 주지 않는다. */
     private static ResponseEntity<String> hang() {
         try {
             Thread.sleep(NO_RESPONSE_DELAY);

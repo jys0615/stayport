@@ -25,11 +25,8 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 /**
- * Supplier B 어댑터.
- *
- * <p><b>B는 장애 상황에서도 HTTP 200을 준다.</b> 본문의 {@code resultCode}를 확인하지 않으면
- * 장애 응답의 {@code data: null}이 "결과 0건"으로 둔갑한다. 클라이언트에게 "방이 없다"와
- * "공급사가 죽었다"는 전혀 다른 사실이므로, 이 판정이 이 어댑터의 존재 이유에 가깝다.
+ * Supplier B 어댑터 — 장애 시에도 HTTP 200을 주고 본문 resultCode로만 실패를 알린다.
+ * resultCode 확인을 빠뜨리면 장애가 "결과 0건"으로 처리된다.
  */
 @Component
 class SupplierBAdapter implements SupplierAdapter {
@@ -96,7 +93,7 @@ class SupplierBAdapter implements SupplierAdapter {
         }
         return response.bodyToMono(SupplierBResponses.Search.class)
                 .map(this::toOffers)
-                // 위와 같은 이유. B는 실패도 200으로 주므로 빈 본문을 성공으로 접으면 더 위험하다.
+                // readCatalog와 같은 이유.
                 .switchIfEmpty(Mono.fromSupplier(
                         () -> offerFailure(FailureType.PARSE_ERROR, "2xx인데 응답 본문이 비어 있다")));
     }
@@ -106,7 +103,6 @@ class SupplierBAdapter implements SupplierAdapter {
             return offerFailure(FailureType.PARSE_ERROR, "resultCode가 없다");
         }
         if (!SUCCESS.equals(body.resultCode())) {
-            // HTTP는 200이었다. 여기서 걸러내지 않으면 장애가 "방 0건"으로 나간다.
             return offerFailure(classify(body.resultCode()), body.resultCode() + " " + body.resultMessage());
         }
         if (body.data() == null || body.data().items() == null) {
@@ -149,8 +145,7 @@ class SupplierBAdapter implements SupplierAdapter {
                 item.maxOccupancy(),
                 availableRooms,
                 item.breakfastIncluded(),
-                // totalPrice는 이미 기간 전체의 세금 포함 총액이다. 곱하거나 나누지 않는다.
-                // 날짜별 분해는 주지 않으므로 dailyBreakdown은 비운다 — 없는 값을 만들지 않는다.
+                // totalPrice는 기간 전체 총액(세금 포함) — 그대로 쓴다. 날짜별 분해는 미제공이라 null.
                 Price.of(item.totalPrice(), item.currency()));
     }
 
@@ -160,7 +155,7 @@ class SupplierBAdapter implements SupplierAdapter {
     }
 
     private Mono<CatalogResult> readCatalog(ClientResponse response) {
-        // B의 규약상 실패도 200으로 오지만, 규약을 벗어난 상태 코드가 오면 그것도 실패다.
+        // 규약상 실패도 200으로 오지만, 규약 밖 상태 코드도 실패로 다룬다.
         if (!response.statusCode().is2xxSuccessful()) {
             FailureType type = SupplierErrors.classify(response.statusCode());
             return response.releaseBody()
@@ -168,8 +163,7 @@ class SupplierBAdapter implements SupplierAdapter {
         }
         return response.bodyToMono(SupplierBResponses.Properties.class)
                 .map(this::toCatalog)
-                // 2xx인데 본문이 없으면 Reactor는 값 없이 완료한다. 그대로 두면 이 호출이
-                // 결과 목록에서 조용히 사라져, 프로토콜 위반이 "숙소 0건"으로 읽힌다.
+                // 2xx + 빈 본문이면 bodyToMono가 값 없이 완료한다. 성공으로 처리하면 안 된다.
                 .switchIfEmpty(Mono.fromSupplier(
                         () -> catalogFailure(FailureType.PARSE_ERROR, "2xx인데 응답 본문이 비어 있다")));
     }
@@ -182,7 +176,6 @@ class SupplierBAdapter implements SupplierAdapter {
             return catalogFailure(classify(body.resultCode()), body.resultCode() + " " + body.resultMessage());
         }
         if (body.data() == null || body.data().items() == null) {
-            // 성공 코드인데 데이터가 없는 건 공급사 응답이 규약을 깬 것이다.
             return catalogFailure(FailureType.PARSE_ERROR, "resultCode는 0000인데 data가 비어 있다");
         }
 
@@ -203,10 +196,7 @@ class SupplierBAdapter implements SupplierAdapter {
         return new CatalogResult.Success(SupplierId.B, stays);
     }
 
-    /**
-     * {@code resultCode}를 공통 실패 축으로 옮긴다. A의 HTTP 상태와 여기의 코드가 같은
-     * {@code FailureType}으로 접히기 때문에, 호출부는 두 공급사의 실패를 같은 방식으로 다룬다.
-     */
+    /** resultCode → FailureType. A의 HTTP 상태 분류와 같은 축. */
     private static FailureType classify(String resultCode) {
         return switch (resultCode) {
             case "E400" -> FailureType.INVALID_REQUEST;

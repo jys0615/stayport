@@ -2,11 +2,7 @@ package io.github.jys0615.stayport.adapter.suppliera;
 
 import java.util.List;
 
-/**
- * Supplier A의 응답 형태. 이 타입들은 이 패키지를 벗어나지 않는다.
- *
- * <p>{@code roomTypes}는 숙소 목록 API에만 있다.
- */
+/** Supplier A 응답 DTO — 이 패키지 밖으로 나가지 않는다. */
 final class SupplierAResponses {
 
     private SupplierAResponses() {
@@ -37,13 +33,8 @@ final class SupplierAResponses {
     }
 
     /**
-     * 날짜를 {@code String}으로 받는다.
-     *
-     * <p>코덱에 날짜 형식을 맡기면 공급사가 형식을 바꿀 때 역직렬화 단계에서 응답 전체가 깨진다.
-     * 어댑터가 직접 파싱하면 그 한 건만 건너뛸 수 있고, 형식 변환이 경계에 남는다.
-     *
-     * <p>{@code nightlyRate}는 세금 별도(net)이고, 그날 고객이 낼 금액은
-     * {@code nightlyRate + taxAmount}다.
+     * 날짜는 String으로 받고 어댑터가 파싱한다 — 코덱에 맡기면 형식 변경 시 응답 전체가 깨진다.
+     * nightlyRate는 세금 별도(net).
      */
     record DailyRate(String date, int remainingRooms, long nightlyRate, long taxAmount) {
     }
