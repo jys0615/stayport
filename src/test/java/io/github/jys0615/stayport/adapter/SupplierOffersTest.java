@@ -125,6 +125,22 @@ class SupplierOffersTest extends SupplierIntegrationTest {
     }
 
     @Test
+    @DisplayName("같은 응답에 같은 (숙소, 객실)이 두 번 오면 첫 건만 쓰고 스킵으로 센다")
+    void duplicateItemsInOneResponseKeepFirstAndCount() {
+        MockSupplierServer.mode("a", "duplicate-items");
+
+        SupplierResult result = adapter(SupplierId.A).fetchOffers(THREE_NIGHTS, List.of("A-10023")).block();
+
+        assertThat(result).isInstanceOf(SupplierResult.Success.class);
+        SupplierResult.Success success = (SupplierResult.Success) result;
+        assertThat(success.offers()).hasSize(1);
+        assertThat(success.skippedItems()).isEqualTo(1);
+        // 첫 건이 이긴다 — 두 번째 건의 값(총액 1,098,000·재고 9)이 아니라 첫 건의 값이어야 한다.
+        assertThat(success.offers().getFirst().price().totalAmount()).isEqualTo(132_000L);
+        assertThat(success.offers().getFirst().availableRooms()).isEqualTo(3);
+    }
+
+    @Test
     @DisplayName("무응답은 타임아웃으로 접힌다")
     void noResponseBecomesTimeout() {
         MockSupplierServer.mode("a", "no-response");
