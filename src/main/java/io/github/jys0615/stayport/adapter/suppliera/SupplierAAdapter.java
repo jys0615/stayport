@@ -18,7 +18,9 @@ import io.github.jys0615.stayport.infra.SupplierWebClients;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -102,10 +104,16 @@ class SupplierAAdapter implements SupplierAdapter {
         }
 
         List<SupplierOffer> offers = new ArrayList<>();
+        Set<List<String>> seen = new HashSet<>();
         int skipped = 0;
         for (SupplierAResponses.Item item : body.items()) {
             SupplierOffer offer = toOffer(item);
             if (offer == null) {
+                skipped++;
+                continue;
+            }
+            // 같은 응답 안에 같은 (숙소, 객실)이 두 번 오는 것은 규약 이상이다. 첫 건만 쓴다.
+            if (!seen.add(List.of(offer.stayCode(), offer.roomCode()))) {
                 skipped++;
                 continue;
             }
