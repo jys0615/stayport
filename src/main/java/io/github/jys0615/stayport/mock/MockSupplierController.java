@@ -4,6 +4,7 @@ import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
 
 import java.time.Duration;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -35,9 +36,12 @@ class MockSupplierController {
     private static final Duration NO_RESPONSE_DELAY = Duration.ofSeconds(30);
 
     private static final int MAX_CODES = 50;
-    private static final Set<String> MODES = Set.of("normal", "error", "no-response", "empty-body");
+    private static final Set<String> MODES = Set.of("normal", "error", "no-response", "empty-body", "duplicate-items");
 
     private final Map<String, String> modes = new ConcurrentHashMap<>();
+
+    /** 이 코드가 포함된 재고 조회만 실패시킨다. 묶음 일부만 실패하는 상황(PARTIAL) 재현용. */
+    private final Map<String, String> failCodes = new ConcurrentHashMap<>();
 
     // ── 고장 스위치 ──
 
@@ -49,6 +53,18 @@ class MockSupplierController {
         }
         modes.put(key, value);
         log.info("mock supplier {} mode -> {}", key, value);
+        return ResponseEntity.ok(Map.of(key, value));
+    }
+
+    @PostMapping("/control/{supplier}/fail-code")
+    ResponseEntity<Map<String, String>> setFailCode(@PathVariable String supplier, @RequestParam String value) {
+        String key = supplier.toLowerCase();
+        if (value.isBlank()) {
+            failCodes.remove(key);
+        } else {
+            failCodes.put(key, value);
+        }
+        log.info("mock supplier {} fail-code -> {}", key, value.isBlank() ? "(해제)" : value);
         return ResponseEntity.ok(Map.of(key, value));
     }
 
@@ -90,10 +106,14 @@ class MockSupplierController {
         if (countCodes(hotelCodes) > MAX_CODES) {
             return ResponseEntity.badRequest().body(MockResponses.A_TOO_MANY_CODES);
         }
+        if (containsFailCode("a", hotelCodes)) {
+            return status(HttpStatus.SERVICE_UNAVAILABLE, MockResponses.A_UNAVAILABLE);
+        }
         return switch (mode("a")) {
             case "error" -> status(HttpStatus.SERVICE_UNAVAILABLE, MockResponses.A_UNAVAILABLE);
             case "no-response" -> hang();
             case "empty-body" -> emptyBody();
+            case "duplicate-items" -> ResponseEntity.ok(MockResponses.A_AVAILABILITY_DUPLICATED);
             default -> ResponseEntity.ok(MockResponses.A_AVAILABILITY);
         };
     }
@@ -128,6 +148,9 @@ class MockSupplierController {
         if (countCodes(propertyIds) > MAX_CODES) {
             return ResponseEntity.ok(MockResponses.B_TOO_MANY_CODES);
         }
+        if (containsFailCode("b", propertyIds)) {
+            return ResponseEntity.ok(MockResponses.B_UNAVAILABLE);
+        }
         return switch (mode("b")) {
             case "error" -> ResponseEntity.ok(MockResponses.B_UNAVAILABLE);
             case "no-response" -> hang();
@@ -144,6 +167,11 @@ class MockSupplierController {
 
     private static boolean isBlank(String s) {
         return s == null || s.isBlank();
+    }
+
+    private boolean containsFailCode(String supplier, String csv) {
+        String failCode = failCodes.get(supplier);
+        return failCode != null && List.of(csv.split(",", -1)).contains(failCode);
     }
 
     private static int countCodes(String csv) {

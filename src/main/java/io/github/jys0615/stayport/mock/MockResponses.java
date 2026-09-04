@@ -2,7 +2,8 @@ package io.github.jys0615.stayport.mock;
 
 /**
  * 고정 응답 본문. 데이터에 심어둔 것: A-10023 ≡ B77120(공통 키 없음, 총액 429,000 vs 452,000,
- * 조식 차이), A-10044는 09-02 재고 0 (연박 min 판정 확인용).
+ * 조식 차이), A-10044는 09-02 재고 0(연박 min 판정 확인용), A-10077은 A-10023과 같은
+ * 객실 코드 DLX-TWN을 쓴다(객실 코드가 숙소 안에서만 유일함을 확인용 — 목록에만 있음).
  */
 final class MockResponses {
 
@@ -24,6 +25,13 @@ final class MockResponses {
                   "hotelName": "Namsan Garden Stay",
                   "roomTypes": [
                     { "roomTypeCode": "STD-DBL", "roomTypeName": "Standard Double", "maxOccupancy": 2 }
+                  ]
+                },
+                {
+                  "hotelCode": "A-10077",
+                  "hotelName": "Riverside Hotel Busan",
+                  "roomTypes": [
+                    { "roomTypeCode": "DLX-TWN", "roomTypeName": "Deluxe Twin", "maxOccupancy": 2 }
                   ]
                 }
               ]
@@ -107,6 +115,30 @@ final class MockResponses {
                   }
                 ]
               }
+            }
+            """;
+
+    /** A-10023이 두 번 들어 있는 재고 응답 — 같은 응답 내 중복이라는 규약 이상 재현용. */
+    static final String A_AVAILABILITY_DUPLICATED = """
+            {
+              "items": [
+                {
+                  "hotelCode": "A-10023", "hotelName": "Riverside Hotel Seoul",
+                  "roomTypeCode": "DLX-TWN", "roomTypeName": "Deluxe Twin",
+                  "maxOccupancy": 2, "breakfastIncluded": false, "currency": "KRW",
+                  "dailyRates": [
+                    { "date": "2026-09-01", "remainingRooms": 3, "nightlyRate": 120000, "taxAmount": 12000 }
+                  ]
+                },
+                {
+                  "hotelCode": "A-10023", "hotelName": "Riverside Hotel Seoul",
+                  "roomTypeCode": "DLX-TWN", "roomTypeName": "Deluxe Twin",
+                  "maxOccupancy": 2, "breakfastIncluded": false, "currency": "KRW",
+                  "dailyRates": [
+                    { "date": "2026-09-01", "remainingRooms": 9, "nightlyRate": 999000, "taxAmount": 99000 }
+                  ]
+                }
+              ]
             }
             """;
 

@@ -54,15 +54,22 @@ public final class MockSupplierServer {
         return "http://localhost:" + port;
     }
 
-    /** normal | error | no-response */
+    /** normal | error | no-response | empty-body */
     public static void mode(String supplier, String value) {
         send("/control/" + supplier + "/mode?value=" + value);
     }
 
-    /** 두 공급사 모두 정상으로. 테스트 사이에 상태가 새지 않게 한다. */
+    /** 이 코드가 포함된 재고 조회만 실패시킨다. 빈 문자열이면 해제. */
+    public static void failCode(String supplier, String code) {
+        send("/control/" + supplier + "/fail-code?value=" + code);
+    }
+
+    /** 두 공급사 모두 정상으로. 테스트 간 상태 격리용. */
     public static void reset() {
         mode("a", "normal");
         mode("b", "normal");
+        failCode("a", "");
+        failCode("b", "");
     }
 
     private static void send(String path) {
