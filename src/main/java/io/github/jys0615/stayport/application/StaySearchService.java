@@ -49,13 +49,15 @@ public class StaySearchService {
     private final List<SupplierAdapter> adapters;
     private final MappingStore mappingStore;
     private final QuarantineStore quarantineStore;
+    private final SearchMetrics metrics;
     private final Duration totalBudget;
 
     StaySearchService(List<SupplierAdapter> adapters, MappingStore mappingStore,
-            QuarantineStore quarantineStore, StayportProperties properties) {
+            QuarantineStore quarantineStore, SearchMetrics metrics, StayportProperties properties) {
         this.adapters = List.copyOf(adapters);
         this.mappingStore = mappingStore;
         this.quarantineStore = quarantineStore;
+        this.metrics = metrics;
         this.totalBudget = properties.search().totalBudget();
     }
 
@@ -129,9 +131,14 @@ public class StaySearchService {
         }
 
         List<SupplierResult> arrived = Flux.fromIterable(queryable)
-                .flatMap(adapter -> adapter.fetchOffers(query, stayCodes.get(adapter.supplier()))
-                        // 어댑터가 예외를 던져도(계약 위반) 다른 공급사의 결과는 유지한다.
-                        .onErrorResume(error -> Mono.just(adapterBroke(adapter.supplier(), error))))
+                .flatMap(adapter -> Mono.defer(() -> {
+                    long startedAt = System.nanoTime();
+                    return adapter.fetchOffers(query, stayCodes.get(adapter.supplier()))
+                            // 어댑터가 예외를 던져도(계약 위반) 다른 공급사의 결과는 유지한다.
+                            .onErrorResume(error -> Mono.just(adapterBroke(adapter.supplier(), error)))
+                            .doOnNext(result -> metrics.recordArrival(
+                                    result, Duration.ofNanos(System.nanoTime() - startedAt)));
+                }))
                 .take(totalBudget)
                 .collectList()
                 .block();
@@ -146,6 +153,7 @@ public class StaySearchService {
             if (!answered.contains(adapter.supplier())) {
                 log.warn("supplier {}가 검색 예산 {}ms 안에 답하지 않았다. 나머지 결과로 응답한다",
                         adapter.supplier(), totalBudget.toMillis());
+                metrics.recordBudgetTimeout(adapter.supplier());
                 results.add(new SupplierResult.Failure(
                         adapter.supplier(), FailureType.TIMEOUT, "search budget exceeded"));
             }

@@ -15,6 +15,17 @@ spring:
 
 server:
   port: 8080
+  tomcat:
+    mbeanregistry:
+      # tomcat.threads.* 지표 노출용 — 부하 측정에서 본 "스레드 인질"을 지표로 확인하는 데 필요
+      enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # 운영 노출 전제가 아니다 — /internal과 같은 층위의 확인용. 해석은 docs/monitoring.md
+        include: health,metrics
 
 stayport:
   search:
