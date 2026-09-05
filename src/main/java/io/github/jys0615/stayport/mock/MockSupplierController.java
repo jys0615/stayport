@@ -36,7 +36,11 @@ class MockSupplierController {
     private static final Duration NO_RESPONSE_DELAY = Duration.ofSeconds(30);
 
     private static final int MAX_CODES = 50;
-    private static final Set<String> MODES = Set.of("normal", "error", "no-response", "empty-body", "duplicate-items");
+    private static final Set<String> MODES =
+            Set.of("normal", "error", "no-response", "empty-body", "duplicate-items", "slow");
+
+    /** slow 모드의 지연. 클라이언트 타임아웃(3s)보다는 짧아서 성공 응답으로 처리된다. */
+    private static final Duration SLOW_DELAY = Duration.ofSeconds(2);
 
     private final Map<String, String> modes = new ConcurrentHashMap<>();
 
@@ -114,6 +118,7 @@ class MockSupplierController {
             case "no-response" -> hang();
             case "empty-body" -> emptyBody();
             case "duplicate-items" -> ResponseEntity.ok(MockResponses.A_AVAILABILITY_DUPLICATED);
+            case "slow" -> delayed(MockResponses.A_AVAILABILITY);
             default -> ResponseEntity.ok(MockResponses.A_AVAILABILITY);
         };
     }
@@ -155,6 +160,7 @@ class MockSupplierController {
             case "error" -> ResponseEntity.ok(MockResponses.B_UNAVAILABLE);
             case "no-response" -> hang();
             case "empty-body" -> emptyBody();
+            case "slow" -> delayed(MockResponses.B_SEARCH);
             default -> ResponseEntity.ok(MockResponses.B_SEARCH);
         };
     }
@@ -180,6 +186,16 @@ class MockSupplierController {
 
     private static ResponseEntity<String> status(HttpStatus status, String body) {
         return ResponseEntity.status(status).body(body);
+    }
+
+    /** N초 뒤 정상 응답 — 타임아웃 값을 정하거나 부하에서 스레드 점유를 관찰할 때. */
+    private static ResponseEntity<String> delayed(String body) {
+        try {
+            Thread.sleep(SLOW_DELAY);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        return ResponseEntity.ok(body);
     }
 
     /** 200 + 빈 본문. */
