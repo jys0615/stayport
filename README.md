@@ -64,7 +64,7 @@ API를 눌러 보려면 `http://localhost:8080/swagger-ui.html`을 열면 됩니
 
 정상이면 상품 3건이 나옵니다. 그중 둘(내부 stayId 1·2)은 실제로는 같은 호텔인데 공급사가 달라
 별개 상품입니다 — B는 452,000원에 조식 포함, A는 429,000원에 조식 없음. 하나로 합치지 않은
-판단은 docs/design.md §8을 참고해 주세요.
+판단은 docs/duplicate-matching.md에 있습니다.
 
 테스트는 흉내 서버를 테스트 JVM 안에 직접 띄우므로 아무것도 미리 실행할 필요가 없습니다:
 
@@ -213,6 +213,7 @@ curl http://localhost:8080/internal/mappings   # 저장된 매핑 확인
 | [docs/api.md](docs/api.md) | 검색 API 명세 — 상태 코드 계약, 필드 해석 규칙, 운영 엔드포인트 |
 | [docs/load-test.md](docs/load-test.md) | 부하 측정 — 공급사 지연이 만드는 처리량 천장 (3,484 → 9.9 req/s), 재현 절차 |
 | [docs/monitoring.md](docs/monitoring.md) | 연동 지표 — 노출되는 메트릭과 시나리오별 해석, 경보 설계 |
+| [docs/duplicate-matching.md](docs/duplicate-matching.md) | 중복 숙소 — 합치지 않은 판단과 근거, 후보 탐지 방식 |
 | [JOURNAL.md](JOURNAL.md) | 일자별 작업 기록과 시행착오 |
 
 ## 🏗 아키텍처

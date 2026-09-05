@@ -92,7 +92,7 @@ GET /api/v1/stays/search?checkIn=2026-09-01&checkOut=2026-09-04&adults=2&childre
 | `price.dailyBreakdown` | 날짜별 분해. **주지 않는 공급사에서는 `null`** — 있으면 날짜별 gross 보장, `netAmount`·`taxAmount`는 그것을 주는 공급사에서만 채워집니다 |
 
 같은 건물을 두 공급사가 팔면 **서로 다른 `stayId`로 두 번 나옵니다.** 병합하지 않는 이유는
-docs/design.md §8과 duplicate-matching 문서를 참고해 주세요. 같은 숙소로 보이는 쌍은
+docs/duplicate-matching.md에 있습니다. 같은 숙소로 보이는 쌍은
 `GET /internal/duplicates`로 조회할 수 있습니다.
 
 **suppliers[]** — 공급사별로 어디까지 받았는지. 조회에 참여한(또는 참여했어야 할) 모든
@@ -165,7 +165,7 @@ docs/design.md §8과 duplicate-matching 문서를 참고해 주세요. 같은 �
 
 서로 다른 공급사가 같은 숙소를 파는 것으로 보이는 쌍입니다. 공급사 간 공통 키가 없어
 숙소명 토큰과 객실 구성으로 추정하며, **자동 병합은 하지 않고 후보만 보여줍니다** —
-판정 기준과 병합하지 않는 이유는 duplicate-matching 문서에 있습니다.
+판정 기준과 병합하지 않는 이유는 docs/duplicate-matching.md에 있습니다.
 
 ```json
 [
