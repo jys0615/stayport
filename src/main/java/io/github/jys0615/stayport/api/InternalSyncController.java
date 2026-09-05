@@ -1,5 +1,7 @@
 package io.github.jys0615.stayport.api;
 
+import io.github.jys0615.stayport.application.DuplicateCandidateService;
+import io.github.jys0615.stayport.application.DuplicateCandidateService.DuplicateCandidate;
 import io.github.jys0615.stayport.application.MappingSyncService;
 import io.github.jys0615.stayport.application.SyncReport;
 import io.github.jys0615.stayport.application.port.MappedRoomType;
@@ -20,12 +22,14 @@ class InternalSyncController {
     private final MappingSyncService syncService;
     private final MappingStore mappingStore;
     private final QuarantineStore quarantineStore;
+    private final DuplicateCandidateService duplicateCandidates;
 
     InternalSyncController(MappingSyncService syncService, MappingStore mappingStore,
-            QuarantineStore quarantineStore) {
+            QuarantineStore quarantineStore, DuplicateCandidateService duplicateCandidates) {
         this.syncService = syncService;
         this.mappingStore = mappingStore;
         this.quarantineStore = quarantineStore;
+        this.duplicateCandidates = duplicateCandidates;
     }
 
     @PostMapping("/sync")
@@ -43,5 +47,11 @@ class InternalSyncController {
     @GetMapping("/quarantine")
     List<QuarantinedOffer> quarantine() {
         return quarantineStore.findAll();
+    }
+
+    /** 서로 다른 공급사가 같은 숙소를 파는 것으로 보이는 쌍 — 병합하지 않고 후보만 보여준다. */
+    @GetMapping("/duplicates")
+    List<DuplicateCandidate> duplicates() {
+        return duplicateCandidates.findCandidates();
     }
 }
