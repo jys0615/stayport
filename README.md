@@ -5,7 +5,8 @@
 ![WebClient](https://img.shields.io/badge/Spring-WebClient-6DB33F?logo=spring&logoColor=white)
 ![JPA](https://img.shields.io/badge/JPA-H2-59666C?logo=hibernate&logoColor=white)
 ![Gradle](https://img.shields.io/badge/Gradle-Kotlin%20DSL-02303A?logo=gradle&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-55_passing-brightgreen)
+![Build](https://github.com/jys0615/stayport/actions/workflows/test.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-59_passing-brightgreen)
 ![ArchUnit](https://img.shields.io/badge/ArchUnit-5_rules-eb6c36)
 
 서로 다른 스펙의 외부 숙박 공급사(Supplier A·B) API를 하나의 표준 상품 모델로 통합하고,
@@ -23,7 +24,7 @@
 
 | 🧪 테스트 | ⏱ 응답 예산 | 🧨 장애 재현 | 📈 부하 실측 |
 |:---:|:---:|:---:|:---:|
-| 55개 전부 green | 어떤 장애에도 **3.5초 안에 200** | 고장 스위치 [6종](#-장애를-직접-내보기) | [3,484 → 9.9 req/s](docs/load-test.md)<br>스레드 천장 증명 |
+| 59개 전부 green | 어떤 장애에도 **3.5초 안에 200** | 고장 스위치 [6종](#-장애를-직접-내보기) | [3,484 → 9.9 req/s](docs/load-test.md)<br>스레드 천장 증명 |
 
 ## 🛠 기술 스택
 
@@ -191,7 +192,8 @@ API 계층은 바뀌지 않습니다. 공급사 DTO가 어댑터 패키지 밖�
 |---|---|
 | [docs/design.md](docs/design.md) | 설계 결정과 근거, 버린 대안, 선택 항목 판단, 운영 전환 로드맵 |
 | [docs/api.md](docs/api.md) | 검색 API 명세 — 상태 코드 계약, 필드 해석 규칙, 운영 엔드포인트 |
-| [docs/load-test.md](docs/load-test.md) | 부하 측정 — 공급사 지연이 만드는 처리량 천장 (3,484 → 9.9 req/s) |
+| [docs/load-test.md](docs/load-test.md) | 부하 측정 — 공급사 지연이 만드는 처리량 천장 (3,484 → 9.9 req/s), 재현 절차 |
+| [docs/monitoring.md](docs/monitoring.md) | 연동 지표 — 노출되는 메트릭과 시나리오별 해석, 경보 설계 |
 | [JOURNAL.md](JOURNAL.md) | 일자별 작업 기록과 시행착오 |
 
 ## 🏗 아키텍처
