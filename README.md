@@ -155,13 +155,14 @@ curl http://localhost:8080/internal/mappings   # 저장된 매핑 확인
 `SupplierAdapter` 구현체 하나(응답 DTO·변환·실패 판정 포함)를 새 패키지에 만들고
 `application.yml`의 `stayport.suppliers`에 항목을 추가하면 끝이다. 도메인·검색 유스케이스·
 API 계층은 바뀌지 않는다. 공급사 DTO가 어댑터 패키지 밖으로 나가지 않는 것이 이 주장의
-전제이고, 경계 규칙은 ArchUnit 테스트로 고정할 예정이다.
+전제이고, 경계 규칙 5개가 ArchUnit 테스트(`ArchitectureTest`)로 빌드에서 강제된다.
 
 ## 문서
 
 | 문서 | 내용 |
 |---|---|
-| [docs/design.md](docs/design.md) | 설계 결정과 근거, 버린 대안, 현재 전제 |
+| [docs/design.md](docs/design.md) | 설계 결정과 근거, 버린 대안, 선택 항목 판단, 운영 전환 로드맵 |
+| [docs/api.md](docs/api.md) | 검색 API 명세 — 상태 코드 계약, 필드 해석 규칙, 운영 엔드포인트 |
 | [JOURNAL.md](JOURNAL.md) | 일자별 작업 기록과 시행착오 |
 
 ## 구조
