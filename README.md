@@ -8,6 +8,7 @@
 ![Build](https://github.com/jys0615/stayport/actions/workflows/test.yml/badge.svg)
 ![Tests](https://img.shields.io/badge/tests-59_passing-brightgreen)
 ![ArchUnit](https://img.shields.io/badge/ArchUnit-5_rules-eb6c36)
+![OpenAPI](https://img.shields.io/badge/OpenAPI-SpringDoc-85EA2D?logo=swagger&logoColor=black)
 
 서로 다른 스펙의 외부 숙박 공급사(Supplier A·B) API를 하나의 표준 상품 모델로 통합하고,
 날짜·인원 기반 통합 검색을 제공하는 백엔드입니다. 공급사마다 요금 표현(날짜별 net+세금 vs 기간
@@ -34,6 +35,7 @@
 | **Spring Boot 4.1 · MVC** | 전면 리액티브 대신 외부 I/O 구간만 논블로킹 — 병렬 구조가 코드에 드러나는 쪽을 택했습니다 |
 | **Spring WebClient** | 공급사 병렬 호출과 타임아웃·부분 실패 제어의 중심입니다 |
 | **JPA · H2** | 매핑·격리 도메인 모델을 관계형으로 — 같은 상품=같은 식별자를 UNIQUE 제약으로 보장합니다 |
+| **SpringDoc** | 실행 중인 서버의 스키마를 `/swagger-ui.html`로 노출합니다 |
 | **ArchUnit** | 패키지 경계 5규칙을 문서 약속이 아니라 빌드 실패로 지킵니다 |
 | **Gradle (Kotlin DSL)** | — |
 
@@ -56,6 +58,8 @@ JDK 21이 필요합니다. 그 외 설치할 것은 없습니다 (DB는 내장 H
 ```bash
 curl "http://localhost:8080/api/v1/stays/search?checkIn=2026-09-01&checkOut=2026-09-04&adults=2&children=0"
 ```
+
+API를 눌러 보려면 `http://localhost:8080/swagger-ui.html`을 열면 됩니다.
 
 정상이면 상품 3건이 나옵니다. 그중 둘(내부 stayId 1·2)은 실제로는 같은 호텔인데 공급사가 달라
 별개 상품입니다 — B는 452,000원에 조식 포함, A는 429,000원에 조식 없음. 하나로 합치지 않은

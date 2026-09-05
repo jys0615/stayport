@@ -8,6 +8,7 @@ import io.github.jys0615.stayport.application.port.MappedRoomType;
 import io.github.jys0615.stayport.application.port.MappingStore;
 import io.github.jys0615.stayport.application.port.QuarantineStore;
 import io.github.jys0615.stayport.domain.quarantine.QuarantinedOffer;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 /** 운영용 엔드포인트 — 수동 재동기화(기동 시 실패의 복구 경로)와 매핑 조회. */
 @RestController
 @RequestMapping("/internal")
+@Tag(name = "운영용(내부)", description = "외부 공개를 전제하지 않는 확인·복구 엔드포인트")
 class InternalSyncController {
 
     private final MappingSyncService syncService;
