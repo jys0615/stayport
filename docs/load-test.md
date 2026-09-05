@@ -53,6 +53,38 @@ slow 부하 중: 2065, 2009, 2006, 2020, 2019 ms
 - 운영에서 이 상황을 알아채는 지표가 "공급사별 응답 지연"과 "스레드 풀 사용률"이다 —
   monitoring 설계의 1순위 입력
 
+## 재현 절차
+
+위 수치는 [scripts/load-test.py](../scripts/load-test.py)로 누구나 다시 잴 수 있다
+(표준 라이브러리만 사용). 절대값은 장비마다 다르지만 두 시나리오의 구조적 차이는 재현된다.
+
+```bash
+# 1. 흉내 서버(9090) + 앱을 스레드 20으로 실행
+./gradlew bootRun --args='--spring.profiles.active=mock'
+./gradlew bootRun --args='--server.tomcat.threads.max=20'
+
+# 2. 정상 시나리오 측정
+python3 scripts/load-test.py --clients 40 --duration 10
+
+# 3. A만 slow(2초 지연)로 바꾸고 같은 측정
+curl -X POST 'http://localhost:9090/control/a/mode?value=slow'
+python3 scripts/load-test.py --clients 40 --duration 10
+
+# 4. 부하가 도는 동안 무관한 엔드포인트가 인질로 잡히는 것 확인
+python3 scripts/load-test.py --url http://localhost:8080/internal/mappings --clients 1 --duration 5
+
+# 5. 복구
+curl -X POST 'http://localhost:9090/control/a/mode?value=normal'
+```
+
+부하 중 상태는 지표로도 보인다 — 공급사별 호출 지연과 실패 유형이 태그로 나뉜다
+(해석은 [monitoring.md](monitoring.md)):
+
+```bash
+curl 'http://localhost:8080/actuator/metrics/stayport.supplier.call?tag=supplier:A'
+curl 'http://localhost:8080/actuator/metrics/stayport.supplier.failure'
+```
+
 ## 한계
 
 - 로컬 측정이라 절대값(3,484 req/s)은 의미가 없다. 의미 있는 것은 두 시나리오의 구조적 차이와
