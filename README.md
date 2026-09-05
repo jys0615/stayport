@@ -181,9 +181,10 @@ curl http://localhost:8080/internal/mappings   # 저장된 매핑 확인
 재시도 판단은 상태 코드가 아니라 `suppliers[].status`로 내립니다.
 
 **신규 공급사 추가 절차**
-`SupplierAdapter` 구현체 하나(응답 DTO·변환·실패 판정 포함)를 새 패키지에 만들고
-`application.yml`의 `stayport.suppliers`에 항목을 추가하면 끝입니다. 도메인·검색 유스케이스·
-API 계층은 바뀌지 않습니다. 공급사 DTO가 어댑터 패키지 밖으로 나가지 않는 것이 이 주장의
+바뀌는 곳은 정확히 세 군데입니다: 공급사 식별자(`SupplierId`) 상수 한 줄, `SupplierAdapter`
+구현체 하나(응답 DTO·변환·실패 판정 포함), `application.yml`의 `stayport.suppliers` 항목 하나.
+검색 유스케이스·병합·API 계층의 로직은 바뀌지 않습니다 — 검색은 등록된 어댑터 목록을 순회할
+뿐 공급사 수를 모릅니다. 공급사 DTO가 어댑터 패키지 밖으로 나가지 않는 것이 이 주장의
 전제이고, 경계 규칙 5개가 ArchUnit 테스트(`ArchitectureTest`)로 빌드에서 강제됩니다.
 
 ## 📚 문서
