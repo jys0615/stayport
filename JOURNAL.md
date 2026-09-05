@@ -518,3 +518,46 @@ Day 3에 고쳐놓고 며칠 만에 같은 걸 다시 했다.
 
 임계값 두 개(이름 유사도 0.6, 객실 구성 0.5)는 근거가 약하다. 데이터를 보고 정한 게 아니라
 찍었다. 운영이라면 설정으로 빼서 조정해야 할 값이다.
+
+### 테스트를 어떻게 쌓았나
+
+날마다 늘어난 숫자만 적어놨는데(36 → 50 → 55 → 62) 무엇으로 늘었는지는 안 적었다. 마지막이니
+정리해둔다.
+
+전략은 Day 3에 정한 두 가지를 끝까지 지켰다. 흉내 서버를 테스트 JVM 안에서 임의 포트로 띄우고,
+어댑터를 목 객체로 바꾸지 않고 실제 HTTP를 태운다. 이 계층에서 확인하려는 게 "HTTP 응답을 어떻게
+해석하느냐"라서, 목으로 바꾸면 확인하려던 게 사라진다. 대신 흉내 서버가 모드라는 상태를 갖고
+있어서 테스트마다 초기화한다.
+
+62개의 구성은 이렇다.
+
+| 무엇을 고정하나 | 클래스 | 개수 |
+|---|---|---|
+| 공급사 응답 정규화·실패 판정 | `SupplierOffersTest` | 10 |
+| 통합 검색 흐름 | `StaySearchTest` | 10 |
+| 청크 분할 경계와 병합 | `ChunkSplitTest` | 9 |
+| 실패 격리 (예산 초과·빈 본문) | `SearchFailureIsolationTest` | 7 |
+| 패키지 경계 (ArchUnit) | `ArchitectureTest` | 5 |
+| 요청 검증과 400 스키마 | `SearchRequestValidationTest` | 5 |
+| 매핑 동기화 불변식 | `MappingSyncTest` | 3 |
+| 서킷 개폐와 회복 | `SearchCircuitBreakerTest` | 3 |
+| 인증 실패, 부분 실패, 미매핑, 지표, 중복 후보 | 나머지 5개 클래스 | 10 |
+
+숫자보다 중요한 건 어떤 테스트가 실제로 무언가를 잡았느냐다. 두 번 있었다. `take(예산)` 수정을
+되돌렸을 때 새 테스트 7개 중 5개가 빨간불이 됐고, 흉내 서버를 9090에 고정으로 띄우고 있던 버그는
+서버를 켜둔 채 테스트를 돌리자 전 스위트가 실패하면서 드러났다. 나머지는 아직 아무것도 안 잡았고,
+그건 그것대로 괜찮다.
+
+### 참고한 것
+
+- Spring Boot 4.0 릴리스 노트 — 모듈 재편으로 `WebClient.Builder` 자동 구성이 사라진 것을
+  여기서 확인했다. <https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Release-Notes>
+- Reactor 레퍼런스 — `take(Duration)`과 `collectList().timeout()`의 차이.
+  <https://projectreactor.io/docs/core/release/reference/>
+- Spring WebClient 문서 <https://docs.spring.io/spring-framework/reference/web/webflux-webclient.html>
+- ArchUnit 사용자 가이드 <https://www.archunit.org/userguide/html/000_Index.html>
+- Resilience4j 서킷 브레이커 — 슬라이딩 윈도우와 반열림 동작.
+  <https://resilience4j.readme.io/docs/circuitbreaker>
+- Micrometer 개념 — 타이머와 카운터를 언제 나누는지.
+  <https://docs.micrometer.io/micrometer/reference/concepts.html>
+- SpringDoc <https://springdoc.org/>
