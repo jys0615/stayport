@@ -163,6 +163,7 @@ API 계층은 바뀌지 않는다. 공급사 DTO가 어댑터 패키지 밖으�
 |---|---|
 | [docs/design.md](docs/design.md) | 설계 결정과 근거, 버린 대안, 선택 항목 판단, 운영 전환 로드맵 |
 | [docs/api.md](docs/api.md) | 검색 API 명세 — 상태 코드 계약, 필드 해석 규칙, 운영 엔드포인트 |
+| [docs/load-test.md](docs/load-test.md) | 부하 측정 — 공급사 지연이 만드는 처리량 천장 (3,484 → 9.9 req/s) |
 | [JOURNAL.md](JOURNAL.md) | 일자별 작업 기록과 시행착오 |
 
 ## 구조
