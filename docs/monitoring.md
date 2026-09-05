@@ -13,6 +13,7 @@
 | `stayport.supplier.call` | timer | `supplier`, `outcome`(ok·partial·failed) | 응답이 도착한 공급사 호출의 소요 시간 |
 | `stayport.supplier.failure` | counter | `supplier`, `type`(FailureType) | 실패 유형별 발생 횟수 |
 | `stayport.supplier.skipped` | counter | `supplier` | 형태 불량·매핑 없음으로 응답에서 뺀 상품 수 |
+| `stayport.supplier.circuit.open` | gauge | `supplier` | 서킷이 열려 있는지 (1=열림, 부르지 않는 상태) |
 
 타이머는 응답이 도착한 호출만 잽니다 — 검색 예산(3.5초)을 넘겨 버려진 공급사는 소요 시간이
 정의되지 않으므로 `failure{type=TIMEOUT}` 카운터로만 남습니다. 성공률은 별도 지표가 아니라
@@ -40,7 +41,12 @@
 아무것도 안 보입니다. `stayport.supplier.failure{supplier=B, type=SUPPLIER_ERROR}`가 오르는데
 5xx는 0인 상태가 바로 그 장애입니다. 본문 판정을 지표로 만들어 둔 이유입니다.
 
-**④ 데이터 품질 문제** — `stayport.supplier.skipped`가 오르면 검색 결과가 줄어든 원인이
+**④ 부르는 것을 멈춘 상태** — `circuit.open`이 1이면 그 공급사는 반복 실패로 차단된 상태입니다.
+이때 `failure{type=CIRCUIT_OPEN}`만 오르고 `call` 타이머는 멈춥니다. 실패 카운터가 줄었다고
+회복으로 읽으면 안 되는 구간이라, 게이지를 함께 봐야 "실패가 멈춘 것"과 "부르는 것을 멈춘 것"이
+구분됩니다.
+
+**⑤ 데이터 품질 문제** — `stayport.supplier.skipped`가 오르면 검색 결과가 줄어든 원인이
 재고가 아니라 매핑·형식 문제라는 신호입니다. 무엇을 버렸는지는 `GET /internal/quarantine`에
 원본째 남아 있습니다.
 
@@ -53,6 +59,7 @@
 2. **공급사별 지연 p95** — 호출 제한(3초)의 2/3 지점을 경계로. 제한에 닿기 전에 알아야
    대응할 시간이 생깁니다
 3. **`tomcat.threads.busy / config.max`** — 지속적으로 80%를 넘으면 ②로 번지기 직전입니다
+4. **`circuit.open`이 1로 유지** — 자동 복구(반열림)가 계속 실패한다는 뜻이라 사람이 봐야 합니다
 
 ## 한계
 

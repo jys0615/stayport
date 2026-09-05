@@ -18,6 +18,7 @@
 > | 통합 검색 API (병렬 호출·병합·부분 실패 응답) | 있음 |
 > | ArchUnit 경계 테스트 (규칙 5개) | 있음 |
 > | 지표 계측 (`stayport.supplier.*`, actuator) | 있음 — 해석은 docs/monitoring.md |
+> | 서킷 브레이커 (공급사 단위, Resilience4j) | 있음 — 판단은 §10 |
 > | API 문서 자동화 (SpringDoc, `/swagger-ui.html`) | 있음 — 계약 설명은 docs/api.md |
 >
 > 구현이 끝난 뒤 이 표를 지우고 문서와 코드를 한 번 대조합니다. 대조에서 어긋난 것이 나오면

@@ -33,6 +33,14 @@ stayport:
     total-budget: 3500ms
   sync:
     on-startup: true
+  circuit-breaker:
+    # 최근 10건 중 절반이 실패하면 10초간 부르지 않는다. 최소 5건은 봐야 판정한다 —
+    # 검색 한 건이 공급사를 한두 번 부르므로 이 창은 몇 번의 검색에 해당한다. 근거: design.md §10
+    sliding-window-size: 10
+    minimum-calls: 5
+    failure-rate-threshold: 50
+    wait-duration-in-open-state: 10s
+    permitted-calls-in-half-open-state: 2
   suppliers:
     a:
       base-url: ${SUPPLIER_A_BASE_URL:http://localhost:9090}

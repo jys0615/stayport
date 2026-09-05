@@ -9,7 +9,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * 애플리케이션 설정. 공급사가 맵이라 새 공급사는 yml 항목 추가만으로 바인딩된다.
  */
 @ConfigurationProperties(prefix = "stayport")
-public record StayportProperties(Search search, Sync sync, Map<SupplierId, Supplier> suppliers) {
+public record StayportProperties(
+        Search search, Sync sync, CircuitBreaker circuitBreaker, Map<SupplierId, Supplier> suppliers) {
 
     /** @param totalBudget 검색 한 건의 전체 예산 = max(공급사 호출) + 병합 여유. 값 근거: design.md §5 */
     public record Search(Duration totalBudget) {
@@ -17,6 +18,23 @@ public record StayportProperties(Search search, Sync sync, Map<SupplierId, Suppl
 
     /** @param onStartup 기동 시 자동 동기화 여부 */
     public record Sync(boolean onStartup) {
+    }
+
+    /**
+     * 공급사별 서킷 브레이커. 값 근거는 design.md §10.
+     *
+     * @param slidingWindowSize             실패율을 재는 최근 호출 수
+     * @param minimumCalls                  판정을 시작하는 최소 호출 수 — 이보다 적으면 열지 않는다
+     * @param failureRateThreshold          열림 판정 실패율(%)
+     * @param waitDurationInOpenState       열린 뒤 반열림까지 기다리는 시간
+     * @param permittedCallsInHalfOpenState 반열림에서 통과시킬 시험 호출 수
+     */
+    public record CircuitBreaker(
+            int slidingWindowSize,
+            int minimumCalls,
+            float failureRateThreshold,
+            Duration waitDurationInOpenState,
+            int permittedCallsInHalfOpenState) {
     }
 
     /**

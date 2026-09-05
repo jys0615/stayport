@@ -108,6 +108,7 @@ docs/design.md §8과 duplicate-matching 문서를 참고해 주세요. 같은 �
 | 필드 | 규칙 |
 |---|---|
 | `failures` | 실패 유형별 개수. `AUTH`·`INVALID_REQUEST`·`PARSE_ERROR`는 재시도해도 같고, `RATE_LIMIT`·`SUPPLIER_ERROR`·`TIMEOUT`은 시간이 지나면 달라질 수 있습니다 |
+| `failures`의 `CIRCUIT_OPEN` | 반복 실패로 서킷이 열려 **부르지 않았다**는 뜻입니다. 재시도해도 대기 시간이 지나기 전에는 같습니다 (design.md §10) |
 | `skippedItems` | 형태가 깨졌거나 매핑에 없어 버린 상품 수. 결과가 적은 이유가 재고인지 데이터 문제인지 구분하는 근거 |
 | `failedChunks` | 나눠 부른 것 중 실패한 묶음 수 |
 

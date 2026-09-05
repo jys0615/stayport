@@ -10,3 +10,7 @@ spring:
 stayport:
   sync:
     on-startup: false
+  circuit-breaker:
+    # 다른 테스트들은 "한쪽이 실패해도 나머지로 응답한다"를 보는 것이라, 반복 실패로 서킷이
+    # 열리면 그 주장이 아니라 서킷을 보게 된다. 기본은 열리지 않게 두고 서킷 테스트만 낮춰 쓴다.
+    minimum-calls: 1000

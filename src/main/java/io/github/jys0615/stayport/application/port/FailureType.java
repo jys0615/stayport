@@ -17,7 +17,13 @@ public enum FailureType {
     // 시간이 지나면 달라질 수 있음
     RATE_LIMIT,
     SUPPLIER_ERROR,
-    TIMEOUT;
+    TIMEOUT,
+
+    /**
+     * 서킷이 열려 있어 아예 부르지 않았다. 원인은 직전의 다른 실패들이므로 대표값 경쟁에서는
+     * 가장 뒤 — 같은 응답에 TIMEOUT이 섞였다면 그쪽이 더 설명력 있다.
+     */
+    CIRCUIT_OPEN;
 
     /**
      * 섞인 실패 중 대표 하나. 선언 순서 기준이므로 호출 완료 순서와 무관하게 결정적이다.

@@ -6,7 +6,7 @@
 ![JPA](https://img.shields.io/badge/JPA-H2-59666C?logo=hibernate&logoColor=white)
 ![Gradle](https://img.shields.io/badge/Gradle-Kotlin%20DSL-02303A?logo=gradle&logoColor=white)
 ![Build](https://github.com/jys0615/stayport/actions/workflows/test.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-59_passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-62_passing-brightgreen)
 ![ArchUnit](https://img.shields.io/badge/ArchUnit-5_rules-eb6c36)
 ![OpenAPI](https://img.shields.io/badge/OpenAPI-SpringDoc-85EA2D?logo=swagger&logoColor=black)
 
@@ -25,7 +25,7 @@
 
 | 🧪 테스트 | ⏱ 응답 예산 | 🧨 장애 재현 | 📈 부하 실측 |
 |:---:|:---:|:---:|:---:|
-| 59개 전부 green | 어떤 장애에도 **3.5초 안에 200** | 고장 스위치 [6종](#-장애를-직접-내보기) | [3,484 → 9.9 req/s](docs/load-test.md)<br>스레드 천장 증명 |
+| 62개 전부 green | 어떤 장애에도 **3.5초 안에 200** | 고장 스위치 [7종](#-장애를-직접-내보기) | [3,484 → 9.9 req/s](docs/load-test.md)<br>스레드 천장 증명 |
 
 ## 🛠 기술 스택
 
@@ -35,6 +35,7 @@
 | **Spring Boot 4.1 · MVC** | 전면 리액티브 대신 외부 I/O 구간만 논블로킹 — 병렬 구조가 코드에 드러나는 쪽을 택했습니다 |
 | **Spring WebClient** | 공급사 병렬 호출과 타임아웃·부분 실패 제어의 중심입니다 |
 | **JPA · H2** | 매핑·격리 도메인 모델을 관계형으로 — 같은 상품=같은 식별자를 UNIQUE 제약으로 보장합니다 |
+| **Resilience4j** | 반복 실패하는 공급사를 잠시 끊습니다 — 스타터 대신 브레이커 모듈만 씁니다 |
 | **SpringDoc** | 실행 중인 서버의 스키마를 `/swagger-ui.html`로 노출합니다 |
 | **ArchUnit** | 패키지 경계 5규칙을 문서 약속이 아니라 빌드 실패로 지킵니다 |
 | **Gradle (Kotlin DSL)** | — |
@@ -118,13 +119,25 @@ curl -X POST 'http://localhost:9090/control/a/mode?value=empty-body'
 # "재고 0건"으로 오해하지 않는지 확인하는 스위치다
 ```
 
-**⑤ 복구**
+**⑤ 반복 실패 — 서킷이 열려 아예 부르지 않는다**
+
+```bash
+# A를 장애로 둔 채 여러 번 검색하면 최근 10건 중 절반이 실패한 시점에 서킷이 열린다
+curl -X POST 'http://localhost:9090/control/a/mode?value=error'
+for i in $(seq 1 6); do curl -s -o /dev/null "http://localhost:8080/api/v1/stays/search?checkIn=2026-09-01&checkOut=2026-09-04&adults=2&children=0"; done
+curl -s 'http://localhost:8080/actuator/metrics/stayport.supplier.circuit.open?tag=supplier:A'
+# 열린 뒤로는 A의 실패 사유가 SUPPLIER_ERROR가 아니라 CIRCUIT_OPEN이다 —
+# 불러서 실패한 것과 아예 부르지 않은 것은 다른 사실이라 구분한다
+```
+
+**⑥ 복구**
 
 ```bash
 curl -X POST 'http://localhost:9090/control/a/mode?value=normal'
+# 열린 서킷은 10초 뒤 시험 호출을 통과시키고 닫힌다
 ```
 
-**⑥ 매핑이 없는 상태와 공급사 장애의 구분**
+**⑦ 매핑이 없는 상태와 공급사 장애의 구분**
 
 흉내 서버를 장애로 둔 채 본 앱을 처음 기동하면(또는 `data/`를 지우고 재기동) 매핑이 빈 채로
 뜹니다 — 동기화 실패로 앱이 죽지는 않습니다. 이때 검색하면 공급사 상태가 `FAILED`가 아니라
@@ -137,7 +150,7 @@ curl http://localhost:8080/internal/mappings   # 저장된 매핑 확인
 ```
 
 위 시나리오들은 전부 자동 테스트로도 고정되어 있습니다 — `StaySearchTest`,
-`SearchFailureIsolationTest`, `SupplierOffersTest`, `ChunkSplitTest` (총 36개).
+`SearchFailureIsolationTest`, `SearchCircuitBreakerTest`, `SupplierOffersTest`, `ChunkSplitTest`.
 
 ## 🧭 설계에서 정한 것들
 

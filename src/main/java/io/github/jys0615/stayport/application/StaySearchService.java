@@ -12,6 +12,7 @@ import io.github.jys0615.stayport.domain.SearchQuery;
 import io.github.jys0615.stayport.domain.StayOffer;
 import io.github.jys0615.stayport.domain.SupplierId;
 import io.github.jys0615.stayport.infra.StayportProperties;
+import io.github.jys0615.stayport.infra.SupplierCircuitBreakers;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -53,8 +54,13 @@ public class StaySearchService {
     private final Duration totalBudget;
 
     StaySearchService(List<SupplierAdapter> adapters, MappingStore mappingStore,
-            QuarantineStore quarantineStore, SearchMetrics metrics, StayportProperties properties) {
-        this.adapters = List.copyOf(adapters);
+            QuarantineStore quarantineStore, SearchMetrics metrics,
+            SupplierCircuitBreakers circuitBreakers, StayportProperties properties) {
+        // 검색 경로에서만 서킷으로 감싼다. 동기화는 감싸지 않은 원본을 그대로 쓴다.
+        this.adapters = adapters.stream()
+                .map(adapter -> (SupplierAdapter) new CircuitBreakingSupplierAdapter(
+                        adapter, circuitBreakers.forSupplier(adapter.supplier())))
+                .toList();
         this.mappingStore = mappingStore;
         this.quarantineStore = quarantineStore;
         this.metrics = metrics;
