@@ -1,6 +1,7 @@
 package io.github.jys0615.stayport.adapter;
 
 import io.github.jys0615.stayport.application.port.FailureType;
+import io.github.jys0615.stayport.application.port.SkippedOffer;
 import io.github.jys0615.stayport.application.port.SupplierOffer;
 import io.github.jys0615.stayport.application.port.SupplierResult;
 import io.github.jys0615.stayport.domain.SupplierId;
@@ -37,6 +38,7 @@ public final class ChunkedOffers {
      */
     public static SupplierResult merge(SupplierId supplier, List<SupplierResult> chunkResults) {
         List<SupplierOffer> offers = new ArrayList<>();
+        List<SkippedOffer> skippedDetails = new ArrayList<>();
         int skippedItems = 0;
         Map<FailureType, Integer> failures = new EnumMap<>(FailureType.class);
 
@@ -45,6 +47,7 @@ public final class ChunkedOffers {
                 case SupplierResult.Success success -> {
                     offers.addAll(success.offers());
                     skippedItems += success.skippedItems();
+                    skippedDetails.addAll(success.skippedDetails());
                 }
                 case SupplierResult.Failure failure ->
                         failures.merge(failure.type(), 1, Integer::sum);
@@ -55,7 +58,7 @@ public final class ChunkedOffers {
         }
 
         if (failures.isEmpty()) {
-            return new SupplierResult.Success(supplier, offers, skippedItems);
+            return new SupplierResult.Success(supplier, offers, skippedItems, skippedDetails);
         }
 
         int failedChunks = failures.values().stream().mapToInt(Integer::intValue).sum();
@@ -63,7 +66,7 @@ public final class ChunkedOffers {
             FailureType type = FailureType.mostSignificant(failures.keySet());
             return new SupplierResult.Failure(supplier, type, summarize(failures));
         }
-        return new SupplierResult.Partial(supplier, offers, skippedItems, failedChunks, failures);
+        return new SupplierResult.Partial(supplier, offers, skippedItems, skippedDetails, failedChunks, failures);
     }
 
     /** 로그와 응답에 실을 짧은 요약. 예: {@code "TIMEOUT x3, AUTH x1"} */

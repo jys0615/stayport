@@ -4,6 +4,7 @@ import io.github.jys0615.stayport.adapter.ChunkedOffers;
 import io.github.jys0615.stayport.adapter.SupplierErrors;
 import io.github.jys0615.stayport.application.port.CatalogResult;
 import io.github.jys0615.stayport.application.port.FailureType;
+import io.github.jys0615.stayport.application.port.SkippedOffer;
 import io.github.jys0615.stayport.application.port.SupplierAdapter;
 import io.github.jys0615.stayport.application.port.SupplierOffer;
 import io.github.jys0615.stayport.application.port.SupplierResult;
@@ -28,6 +29,7 @@ import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import tools.jackson.databind.json.JsonMapper;
 
 /** Supplier A 어댑터 — 실패를 HTTP 상태 코드로 알린다. */
 @Component
@@ -37,8 +39,10 @@ class SupplierAAdapter implements SupplierAdapter {
 
     private final WebClient client;
     private final StayportProperties.Supplier config;
+    private final JsonMapper jsonMapper;
 
-    SupplierAAdapter(SupplierWebClients clients, StayportProperties properties) {
+    SupplierAAdapter(SupplierWebClients clients, StayportProperties properties, JsonMapper jsonMapper) {
+        this.jsonMapper = jsonMapper;
         this.client = clients.forSupplier(SupplierId.A);
         this.config = properties.suppliers().get(SupplierId.A);
     }
@@ -104,17 +108,20 @@ class SupplierAAdapter implements SupplierAdapter {
         }
 
         List<SupplierOffer> offers = new ArrayList<>();
+        List<SkippedOffer> skippedDetails = new ArrayList<>();
         Set<List<String>> seen = new HashSet<>();
         int skipped = 0;
         for (SupplierAResponses.Item item : body.items()) {
             SupplierOffer offer = toOffer(item);
             if (offer == null) {
                 skipped++;
+                skippedDetails.add(new SkippedOffer("형태 이상", toJsonOrNull(item)));
                 continue;
             }
             // 같은 응답 안에 같은 (숙소, 객실)이 두 번 오는 것은 규약 이상이다. 첫 건만 쓴다.
             if (!seen.add(List.of(offer.stayCode(), offer.roomCode()))) {
                 skipped++;
+                skippedDetails.add(new SkippedOffer("같은 응답 내 중복", toJsonOrNull(item)));
                 continue;
             }
             offers.add(offer);
@@ -123,7 +130,7 @@ class SupplierAAdapter implements SupplierAdapter {
         if (skipped > 0) {
             log.warn("supplier A 재고·요금에서 {}건을 건너뜀 (사용 가능 {}건)", skipped, offers.size());
         }
-        return new SupplierResult.Success(SupplierId.A, offers, skipped);
+        return new SupplierResult.Success(SupplierId.A, offers, skipped, skippedDetails);
     }
 
     /** 상품 1건 정규화. 형태가 이상하면 null — 그 건만 스킵된다. */
@@ -227,6 +234,14 @@ class SupplierAAdapter implements SupplierAdapter {
     private CatalogResult catalogFailure(FailureType type, Throwable error) {
         log.warn("supplier A 숙소 목록 조회 실패: {} ({})", type, error.toString());
         return new CatalogResult.Failure(SupplierId.A, type, error.getClass().getSimpleName());
+    }
+
+    private String toJsonOrNull(Object item) {
+        try {
+            return jsonMapper.writeValueAsString(item);
+        } catch (RuntimeException e) {
+            return null; // 기록이 정규화를 방해하면 안 된다
+        }
     }
 
     private static boolean isBlank(String value) {

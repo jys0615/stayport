@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.jys0615.stayport.application.SearchResult.SupplierOutcome;
 import io.github.jys0615.stayport.application.port.MappingStore;
+import io.github.jys0615.stayport.application.port.QuarantineStore;
 import io.github.jys0615.stayport.domain.SearchQuery;
 import io.github.jys0615.stayport.domain.SupplierId;
 import io.github.jys0615.stayport.support.MockSupplierServer;
@@ -49,6 +50,9 @@ class SearchUnmappedOfferTest {
     @Autowired
     private MappingStore mappingStore;
 
+    @Autowired
+    private QuarantineStore quarantineStore;
+
     @BeforeEach
     void mapOnlyOneStay() {
         MockSupplierServer.reset();
@@ -74,5 +78,13 @@ class SearchUnmappedOfferTest {
 
         // B는 매핑이 아예 없으므로 부르지 않았고, 그 사실이 FAILED가 아닌 NO_MAPPING으로 남는다.
         assertThat(outcomes.get(SupplierId.B).status()).isEqualTo(SupplierStatus.NO_MAPPING);
+
+        // 버린 상품은 개수로 끝나지 않고 격리 테이블에 남는다 — 추후 분석용.
+        assertThat(quarantineStore.findAll())
+                .anySatisfy(row -> {
+                    assertThat(row.supplier()).isEqualTo(SupplierId.A);
+                    assertThat(row.reason()).isEqualTo("매핑 없음");
+                    assertThat(row.payload()).contains("A-10044");
+                });
     }
 }

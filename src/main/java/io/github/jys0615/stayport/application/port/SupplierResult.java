@@ -16,17 +16,20 @@ public sealed interface SupplierResult {
     /**
      * 물어본 것을 전부 받았다.
      *
-     * @param offers       정규화된 상품들 — 아직 공급사 코드 기준 (내부 식별자 해석은 유스케이스)
-     * @param skippedItems 형태가 깨져 건너뛴 상품 수
+     * @param offers         정규화된 상품들 — 아직 공급사 코드 기준 (내부 식별자 해석은 유스케이스)
+     * @param skippedItems   형태가 깨져 건너뛴 상품 수
+     * @param skippedDetails 건너뛴 상품의 이유·원본. 저장은 블로킹이 안전한 유스케이스가 한다
      */
-    record Success(SupplierId supplier, List<SupplierOffer> offers, int skippedItems) implements SupplierResult {
+    record Success(SupplierId supplier, List<SupplierOffer> offers, int skippedItems,
+                   List<SkippedOffer> skippedDetails) implements SupplierResult {
 
         public Success {
             offers = List.copyOf(offers);
+            skippedDetails = List.copyOf(skippedDetails);
         }
 
         public static Success of(SupplierId supplier, List<SupplierOffer> offers) {
-            return new Success(supplier, offers, 0);
+            return new Success(supplier, offers, 0, List.of());
         }
     }
 
@@ -40,11 +43,13 @@ public sealed interface SupplierResult {
             SupplierId supplier,
             List<SupplierOffer> offers,
             int skippedItems,
+            List<SkippedOffer> skippedDetails,
             int failedChunks,
             Map<FailureType, Integer> failures) implements SupplierResult {
 
         public Partial {
             offers = List.copyOf(offers);
+            skippedDetails = List.copyOf(skippedDetails);
             failures = Map.copyOf(new EnumMap<>(failures));
         }
     }

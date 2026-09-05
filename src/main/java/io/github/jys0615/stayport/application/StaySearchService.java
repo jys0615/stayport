@@ -3,6 +3,8 @@ package io.github.jys0615.stayport.application;
 import io.github.jys0615.stayport.application.port.FailureType;
 import io.github.jys0615.stayport.application.port.MappedRoomType;
 import io.github.jys0615.stayport.application.port.MappingStore;
+import io.github.jys0615.stayport.application.port.QuarantineStore;
+import io.github.jys0615.stayport.application.port.SkippedOffer;
 import io.github.jys0615.stayport.application.port.SupplierAdapter;
 import io.github.jys0615.stayport.application.port.SupplierOffer;
 import io.github.jys0615.stayport.application.port.SupplierResult;
@@ -46,11 +48,14 @@ public class StaySearchService {
 
     private final List<SupplierAdapter> adapters;
     private final MappingStore mappingStore;
+    private final QuarantineStore quarantineStore;
     private final Duration totalBudget;
 
-    StaySearchService(List<SupplierAdapter> adapters, MappingStore mappingStore, StayportProperties properties) {
+    StaySearchService(List<SupplierAdapter> adapters, MappingStore mappingStore,
+            QuarantineStore quarantineStore, StayportProperties properties) {
         this.adapters = List.copyOf(adapters);
         this.mappingStore = mappingStore;
+        this.quarantineStore = quarantineStore;
         this.totalBudget = properties.search().totalBudget();
     }
 
@@ -76,6 +81,7 @@ public class StaySearchService {
                 case SupplierResult.Success success -> {
                     Resolved resolved = resolve(success.supplier(), success.offers(), index);
                     stays.addAll(resolved.offers());
+                    quarantine(success.supplier(), success.skippedDetails());
                     outcomes.add(SearchResult.SupplierOutcome.ok(
                             success.supplier(),
                             resolved.offers().size(),
@@ -84,6 +90,7 @@ public class StaySearchService {
                 case SupplierResult.Partial partial -> {
                     Resolved resolved = resolve(partial.supplier(), partial.offers(), index);
                     stays.addAll(resolved.offers());
+                    quarantine(partial.supplier(), partial.skippedDetails());
                     outcomes.add(new SearchResult.SupplierOutcome(
                             partial.supplier(),
                             SupplierStatus.PARTIAL,
@@ -170,6 +177,8 @@ public class StaySearchService {
             MappedRoomType mapping = index.find(supplier, offer.stayCode(), offer.roomCode());
             if (mapping == null) {
                 unmapped++;
+                quarantineStore.keep(supplier, "매핑 없음",
+                        "%s %s".formatted(offer.stayCode(), offer.roomCode()));
                 continue;
             }
             resolved.add(new StayOffer(
@@ -189,6 +198,13 @@ public class StaySearchService {
                     supplier, unmapped);
         }
         return new Resolved(resolved, unmapped);
+    }
+
+    /** 어댑터가 모아온 스킵 상세를 격리 테이블로. block() 뒤라 JPA 호출이 안전하다. */
+    private void quarantine(SupplierId supplier, List<SkippedOffer> details) {
+        for (SkippedOffer detail : details) {
+            quarantineStore.keep(supplier, detail.reason(), detail.payload());
+        }
     }
 
     /** 어댑터가 예외를 던진 경우(계약 위반). 이 공급사만 실패 처리한다. */

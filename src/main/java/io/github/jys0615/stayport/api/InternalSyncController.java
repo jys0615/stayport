@@ -4,6 +4,8 @@ import io.github.jys0615.stayport.application.MappingSyncService;
 import io.github.jys0615.stayport.application.SyncReport;
 import io.github.jys0615.stayport.application.port.MappedRoomType;
 import io.github.jys0615.stayport.application.port.MappingStore;
+import io.github.jys0615.stayport.application.port.QuarantineStore;
+import io.github.jys0615.stayport.domain.quarantine.QuarantinedOffer;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,10 +19,13 @@ class InternalSyncController {
 
     private final MappingSyncService syncService;
     private final MappingStore mappingStore;
+    private final QuarantineStore quarantineStore;
 
-    InternalSyncController(MappingSyncService syncService, MappingStore mappingStore) {
+    InternalSyncController(MappingSyncService syncService, MappingStore mappingStore,
+            QuarantineStore quarantineStore) {
         this.syncService = syncService;
         this.mappingStore = mappingStore;
+        this.quarantineStore = quarantineStore;
     }
 
     @PostMapping("/sync")
@@ -32,5 +37,11 @@ class InternalSyncController {
     @GetMapping("/mappings")
     List<MappedRoomType> mappings() {
         return mappingStore.findAll();
+    }
+
+    /** 정규화에서 버려져 격리된 상품들 — 추후 분석용. */
+    @GetMapping("/quarantine")
+    List<QuarantinedOffer> quarantine() {
+        return quarantineStore.findAll();
     }
 }

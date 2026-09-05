@@ -2,6 +2,7 @@ package io.github.jys0615.stayport.adapter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.github.jys0615.stayport.application.port.QuarantineStore;
 import io.github.jys0615.stayport.application.port.SupplierAdapter;
 import io.github.jys0615.stayport.application.port.SupplierOffer;
 import io.github.jys0615.stayport.application.port.SupplierResult;
@@ -32,6 +33,9 @@ class SupplierOffersTest extends SupplierIntegrationTest {
 
     @Autowired
     private List<SupplierAdapter> adapters;
+
+    @Autowired
+    private QuarantineStore quarantineStore;
 
     private SupplierAdapter adapter(SupplierId supplier) {
         return adapters.stream()
@@ -138,6 +142,13 @@ class SupplierOffersTest extends SupplierIntegrationTest {
         // 첫 건이 이긴다 — 두 번째 건의 값(총액 1,098,000·재고 9)이 아니라 첫 건의 값이어야 한다.
         assertThat(success.offers().getFirst().price().totalAmount()).isEqualTo(132_000L);
         assertThat(success.offers().getFirst().availableRooms()).isEqualTo(3);
+        // 버린 두 번째 건은 원본째 결과에 실려 온다 — 격리 저장은 유스케이스 몫이므로 여기선 상세만.
+        assertThat(success.skippedDetails())
+                .singleElement()
+                .satisfies(detail -> {
+                    assertThat(detail.reason()).isEqualTo("같은 응답 내 중복");
+                    assertThat(detail.payload()).contains("999000");
+                });
     }
 
     @Test
