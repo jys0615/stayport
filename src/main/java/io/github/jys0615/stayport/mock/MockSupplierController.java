@@ -37,7 +37,7 @@ class MockSupplierController {
 
     private static final int MAX_CODES = 50;
     private static final Set<String> MODES =
-            Set.of("normal", "error", "no-response", "empty-body", "duplicate-items", "slow");
+            Set.of("normal", "error", "rate-limit", "no-response", "empty-body", "duplicate-items", "slow");
 
     /** slow 모드의 지연. 클라이언트 타임아웃(3s)보다는 짧아서 성공 응답으로 처리된다. */
     private static final Duration SLOW_DELAY = Duration.ofSeconds(2);
@@ -89,6 +89,7 @@ class MockSupplierController {
         }
         return switch (mode("a")) {
             case "error" -> status(HttpStatus.SERVICE_UNAVAILABLE, MockResponses.A_UNAVAILABLE);
+            case "rate-limit" -> status(HttpStatus.TOO_MANY_REQUESTS, MockResponses.A_RATE_LIMITED);
             case "no-response" -> hang();
             case "empty-body" -> emptyBody();
             default -> ResponseEntity.ok(MockResponses.A_HOTELS);
@@ -115,6 +116,7 @@ class MockSupplierController {
         }
         return switch (mode("a")) {
             case "error" -> status(HttpStatus.SERVICE_UNAVAILABLE, MockResponses.A_UNAVAILABLE);
+            case "rate-limit" -> status(HttpStatus.TOO_MANY_REQUESTS, MockResponses.A_RATE_LIMITED);
             case "no-response" -> hang();
             case "empty-body" -> emptyBody();
             case "duplicate-items" -> ResponseEntity.ok(MockResponses.A_AVAILABILITY_DUPLICATED);
@@ -132,6 +134,7 @@ class MockSupplierController {
         }
         return switch (mode("b")) {
             case "error" -> ResponseEntity.ok(MockResponses.B_UNAVAILABLE);
+            case "rate-limit" -> ResponseEntity.ok(MockResponses.B_RATE_LIMITED);
             case "no-response" -> hang();
             case "empty-body" -> emptyBody();
             default -> ResponseEntity.ok(MockResponses.B_PROPERTIES);
@@ -158,6 +161,7 @@ class MockSupplierController {
         }
         return switch (mode("b")) {
             case "error" -> ResponseEntity.ok(MockResponses.B_UNAVAILABLE);
+            case "rate-limit" -> ResponseEntity.ok(MockResponses.B_RATE_LIMITED);
             case "no-response" -> hang();
             case "empty-body" -> emptyBody();
             case "slow" -> delayed(MockResponses.B_SEARCH);

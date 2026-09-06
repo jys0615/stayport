@@ -156,6 +156,13 @@ final class MockResponses {
     static final String B_UNAVAILABLE = """
             { "resultCode": "E503", "resultMessage": "TEMPORARILY_UNAVAILABLE", "data": null }""";
 
+    /** A는 429로, B는 200 + E429로 같은 상황을 알린다 — 통일 판정 확인용. */
+    static final String A_RATE_LIMITED = """
+            { "error": "TOO_MANY_REQUESTS", "message": "rate limit exceeded" }""";
+
+    static final String B_RATE_LIMITED = """
+            { "resultCode": "E429", "resultMessage": "RATE_LIMIT_EXCEEDED", "data": null }""";
+
     static final String B_UNAUTHORIZED = """
             { "resultCode": "E401", "resultMessage": "UNAUTHORIZED", "data": null }""";
 

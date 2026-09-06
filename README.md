@@ -6,7 +6,7 @@
 ![JPA](https://img.shields.io/badge/JPA-H2-59666C?logo=hibernate&logoColor=white)
 ![Gradle](https://img.shields.io/badge/Gradle-Kotlin%20DSL-02303A?logo=gradle&logoColor=white)
 ![Build](https://github.com/jys0615/stayport/actions/workflows/test.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-62_passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-64_passing-brightgreen)
 ![ArchUnit](https://img.shields.io/badge/ArchUnit-5_rules-eb6c36)
 ![OpenAPI](https://img.shields.io/badge/OpenAPI-SpringDoc-85EA2D?logo=swagger&logoColor=black)
 
@@ -27,7 +27,7 @@
 
 | 🧪 테스트 | ⏱ 응답 예산 | 🧨 장애 재현 | 📈 부하 실측 |
 |:---:|:---:|:---:|:---:|
-| 62개 전부 green | 어떤 장애에도 **3.5초 안에 200** | 고장 스위치 [7종](#-장애를-직접-내보기) | [3,484 → 9.9 req/s](docs/load-test.md)<br>스레드 천장 증명 |
+| 64개 전부 green | 어떤 장애에도 **3.5초 안에 200** | 고장 스위치 [8종](#-장애를-직접-내보기) | [3,484 → 9.9 req/s](docs/load-test.md)<br>스레드 천장 증명 |
 
 ## 🛠 기술 스택
 
@@ -132,14 +132,23 @@ curl -s 'http://localhost:8080/actuator/metrics/stayport.supplier.circuit.open?t
 # 불러서 실패한 것과 아예 부르지 않은 것은 다른 사실이라 구분한다
 ```
 
-**⑥ 복구**
+**⑥ 속도 제한 — 두 공급사가 다른 방식으로 같은 말을 한다**
+
+```bash
+curl -X POST 'http://localhost:9090/control/a/mode?value=rate-limit'
+curl -X POST 'http://localhost:9090/control/b/mode?value=rate-limit'
+# A는 HTTP 429, B는 200에 resultCode E429. 둘 다 RATE_LIMIT 하나로 접힌다.
+# AUTH·PARSE_ERROR와 달리 시간이 지나면 달라질 수 있는 실패라 재시도 대상이 된다(design.md §10)
+```
+
+**⑦ 복구**
 
 ```bash
 curl -X POST 'http://localhost:9090/control/a/mode?value=normal'
 # 열린 서킷은 10초 뒤 시험 호출을 통과시키고 닫힌다
 ```
 
-**⑦ 매핑이 없는 상태와 공급사 장애의 구분**
+**⑧ 매핑이 없는 상태와 공급사 장애의 구분**
 
 흉내 서버를 장애로 둔 채 본 앱을 처음 기동하면(또는 `data/`를 지우고 재기동) 매핑이 빈 채로
 뜹니다. 동기화가 실패해도 앱이 죽지는 않습니다. 이때 검색하면 공급사 상태가 `FAILED`가 아니라

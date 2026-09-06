@@ -2,6 +2,7 @@ package io.github.jys0615.stayport.adapter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.github.jys0615.stayport.application.port.FailureType;
 import io.github.jys0615.stayport.application.port.QuarantineStore;
 import io.github.jys0615.stayport.application.port.SupplierAdapter;
 import io.github.jys0615.stayport.application.port.SupplierOffer;
@@ -49,6 +50,22 @@ class SupplierOffersTest extends SupplierIntegrationTest {
         assertThat(result).isInstanceOf(SupplierResult.Success.class);
         return ((SupplierResult.Success) result).offers().stream()
                 .collect(Collectors.toMap(SupplierOffer::stayCode, Function.identity()));
+    }
+
+    @Test
+    @DisplayName("속도 제한은 A의 429와 B의 E429가 같은 RATE_LIMIT으로 접힌다")
+    void rateLimitIsClassifiedTheSameWayForBothSuppliers() {
+        MockSupplierServer.mode("a", "rate-limit");
+        MockSupplierServer.mode("b", "rate-limit");
+
+        // A는 HTTP 429로, B는 200에 resultCode E429로 같은 상황을 알린다.
+        SupplierResult a = adapter(SupplierId.A).fetchOffers(THREE_NIGHTS, List.of("A-10023")).block();
+        SupplierResult b = adapter(SupplierId.B).fetchOffers(THREE_NIGHTS, List.of("B77120")).block();
+
+        assertThat(a).isInstanceOf(SupplierResult.Failure.class);
+        assertThat(b).isInstanceOf(SupplierResult.Failure.class);
+        assertThat(((SupplierResult.Failure) a).type()).isEqualTo(FailureType.RATE_LIMIT);
+        assertThat(((SupplierResult.Failure) b).type()).isEqualTo(FailureType.RATE_LIMIT);
     }
 
     @Test
