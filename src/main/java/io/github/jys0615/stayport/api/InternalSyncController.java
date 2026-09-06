@@ -47,8 +47,8 @@ class InternalSyncController {
 
     /** 정규화에서 버려져 격리된 상품들 — 추후 분석용. */
     @GetMapping("/quarantine")
-    List<QuarantinedOffer> quarantine() {
-        return quarantineStore.findAll();
+    List<QuarantinedOfferView> quarantine() {
+        return quarantineStore.findAll().stream().map(QuarantinedOfferView::of).toList();
     }
 
     /** 서로 다른 공급사가 같은 숙소를 파는 것으로 보이는 쌍 — 병합하지 않고 후보만 보여준다. */
