@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
+import tools.jackson.databind.json.JsonMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -51,10 +52,11 @@ public class StaySearchService {
     private final MappingStore mappingStore;
     private final QuarantineStore quarantineStore;
     private final SearchMetrics metrics;
+    private final JsonMapper jsonMapper;
     private final Duration totalBudget;
 
     StaySearchService(List<SupplierAdapter> adapters, MappingStore mappingStore,
-            QuarantineStore quarantineStore, SearchMetrics metrics,
+            QuarantineStore quarantineStore, SearchMetrics metrics, JsonMapper jsonMapper,
             SupplierCircuitBreakers circuitBreakers, StayportProperties properties) {
         // 검색 경로에서만 서킷으로 감싼다. 동기화는 감싸지 않은 원본을 그대로 쓴다.
         this.adapters = adapters.stream()
@@ -64,6 +66,7 @@ public class StaySearchService {
         this.mappingStore = mappingStore;
         this.quarantineStore = quarantineStore;
         this.metrics = metrics;
+        this.jsonMapper = jsonMapper;
         this.totalBudget = properties.search().totalBudget();
     }
 
@@ -90,20 +93,22 @@ public class StaySearchService {
                     Resolved resolved = resolve(success.supplier(), success.offers(), index);
                     stays.addAll(resolved.offers());
                     quarantine(success.supplier(), success.skippedDetails());
+                    int skipped = success.skippedItems() + resolved.unmapped();
+                    metrics.recordSkipped(success.supplier(), skipped);
                     outcomes.add(SearchResult.SupplierOutcome.ok(
-                            success.supplier(),
-                            resolved.offers().size(),
-                            success.skippedItems() + resolved.unmapped()));
+                            success.supplier(), resolved.offers().size(), skipped));
                 }
                 case SupplierResult.Partial partial -> {
                     Resolved resolved = resolve(partial.supplier(), partial.offers(), index);
                     stays.addAll(resolved.offers());
                     quarantine(partial.supplier(), partial.skippedDetails());
+                    int skipped = partial.skippedItems() + resolved.unmapped();
+                    metrics.recordSkipped(partial.supplier(), skipped);
                     outcomes.add(new SearchResult.SupplierOutcome(
                             partial.supplier(),
                             SupplierStatus.PARTIAL,
                             resolved.offers().size(),
-                            partial.skippedItems() + resolved.unmapped(),
+                            skipped,
                             partial.failedChunks(),
                             partial.failures()));
                 }
@@ -191,8 +196,10 @@ public class StaySearchService {
             MappedRoomType mapping = index.find(supplier, offer.stayCode(), offer.roomCode());
             if (mapping == null) {
                 unmapped++;
-                quarantineStore.keep(supplier, "매핑 없음",
-                        "%s %s".formatted(offer.stayCode(), offer.roomCode()));
+                // payload는 JSON 하나로 통일한다 — 어댑터가 남기는 것과 형식이 갈리면
+                // 나중에 이 테이블을 읽는 쪽이 두 가지 파서를 들어야 한다.
+                quarantineStore.keep(supplier, "매핑 없음", toJsonOrNull(
+                        Map.of("stayCode", offer.stayCode(), "roomCode", offer.roomCode())));
                 continue;
             }
             resolved.add(new StayOffer(
@@ -218,6 +225,14 @@ public class StaySearchService {
     private void quarantine(SupplierId supplier, List<SkippedOffer> details) {
         for (SkippedOffer detail : details) {
             quarantineStore.keep(supplier, detail.reason(), detail.payload());
+        }
+    }
+
+    private String toJsonOrNull(Object value) {
+        try {
+            return jsonMapper.writeValueAsString(value);
+        } catch (RuntimeException e) {
+            return null; // 기록이 검색을 방해하면 안 된다
         }
     }
 

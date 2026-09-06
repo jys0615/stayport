@@ -34,11 +34,9 @@ public class SearchMetrics {
         switch (result) {
             case SupplierResult.Success success -> {
                 callTimer(success.supplier(), "ok").record(elapsed);
-                skipped(success.supplier(), success.skippedItems());
             }
             case SupplierResult.Partial partial -> {
                 callTimer(partial.supplier(), "partial").record(elapsed);
-                skipped(partial.supplier(), partial.skippedItems());
                 failures(partial.supplier(), partial.failures());
             }
             case SupplierResult.Failure failure -> {
@@ -46,6 +44,15 @@ public class SearchMetrics {
                 failures(failure.supplier(), Map.of(failure.type(), 1));
             }
         }
+    }
+
+    /**
+     * 응답에서 뺀 상품 수. 어댑터가 버린 것(형태 불량·중복)과 매핑이 없어 빠진 것을 합친 값이라,
+     * 호출이 도착한 시점이 아니라 매핑 해석까지 끝난 뒤에 기록한다. 응답의 {@code skippedItems}와
+     * 같은 수여야 monitoring.md의 해석이 성립한다.
+     */
+    void recordSkipped(SupplierId supplier, int count) {
+        skipped(supplier, count);
     }
 
     /** 검색 예산 안에 아예 답하지 않은 공급사. 호출이 끝나지 않았으므로 타이머는 기록하지 않는다. */

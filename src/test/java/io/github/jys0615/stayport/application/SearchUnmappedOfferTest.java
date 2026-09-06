@@ -8,6 +8,7 @@ import io.github.jys0615.stayport.application.port.QuarantineStore;
 import io.github.jys0615.stayport.domain.SearchQuery;
 import io.github.jys0615.stayport.domain.SupplierId;
 import io.github.jys0615.stayport.support.MockSupplierServer;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.LocalDate;
 import java.util.Map;
 import java.util.function.Function;
@@ -53,6 +54,9 @@ class SearchUnmappedOfferTest {
     @Autowired
     private QuarantineStore quarantineStore;
 
+    @Autowired
+    private MeterRegistry meterRegistry;
+
     @BeforeEach
     void mapOnlyOneStay() {
         MockSupplierServer.reset();
@@ -79,12 +83,17 @@ class SearchUnmappedOfferTest {
         // B는 매핑이 아예 없으므로 부르지 않았고, 그 사실이 FAILED가 아닌 NO_MAPPING으로 남는다.
         assertThat(outcomes.get(SupplierId.B).status()).isEqualTo(SupplierStatus.NO_MAPPING);
 
+        // 지표도 같은 수를 센다. 매핑 없음은 응답을 받은 뒤에 판정되므로, 도착 시점에 기록하면
+        // 응답의 skippedItems와 지표가 어긋난다(monitoring.md ⑤의 전제).
+        assertThat(meterRegistry.get("stayport.supplier.skipped").tag("supplier", "A").counter().count())
+                .isEqualTo(a.skippedItems());
+
         // 버린 상품은 개수로 끝나지 않고 격리 테이블에 남는다 — 추후 분석용.
         assertThat(quarantineStore.findAll())
                 .anySatisfy(row -> {
                     assertThat(row.supplier()).isEqualTo(SupplierId.A);
                     assertThat(row.reason()).isEqualTo("매핑 없음");
-                    assertThat(row.payload()).contains("A-10044");
+                    assertThat(row.payload()).contains("\"stayCode\":\"A-10044\"");
                 });
     }
 }

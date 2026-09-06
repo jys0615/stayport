@@ -158,8 +158,9 @@ docs/duplicate-matching.md에 있습니다. 같은 숙소로 보이는 쌍은
 
 ### GET /internal/quarantine
 
-정규화에서 버려져 격리된 상품들입니다. 사유와 공급사 원본이 그대로 남아 있어 추후 분석에
-씁니다 (docs/design.md §10).
+정규화에서 버려져 격리된 상품들입니다. 사유와 원본이 남아 있어 추후 분석에 씁니다
+(docs/design.md §10). `payload`는 어느 경로로 버려졌든 JSON 하나로 통일돼 있습니다 —
+어댑터가 버린 것은 공급사 응답 항목 그대로, 매핑이 없어 빠진 것은 식별에 쓴 코드들입니다.
 
 ### GET /internal/duplicates
 

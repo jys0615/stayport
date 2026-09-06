@@ -59,9 +59,11 @@ public class DuplicateCandidateService {
 
     /** 매핑(객실 단위)을 숙소 단위 프로필로 접는다. */
     private static List<StayProfile> profilesOf(List<MappedRoomType> mappings) {
-        Map<String, StayProfile> byStay = new LinkedHashMap<>();
+        // 키를 문자열로 이어 붙이면 코드에 구분자가 들어올 때 서로 다른 숙소가 한 키로 합쳐진다.
+        // 같은 이유로 검색 쪽 매핑 색인도 레코드 키를 쓴다(StaySearchService.MappingIndex).
+        Map<StayKey, StayProfile> byStay = new LinkedHashMap<>();
         for (MappedRoomType mapping : mappings) {
-            String key = mapping.supplier() + "/" + mapping.supplierStayCode();
+            StayKey key = new StayKey(mapping.supplier(), mapping.supplierStayCode());
             StayProfile profile = byStay.computeIfAbsent(key, ignored -> new StayProfile(
                     mapping.supplier(),
                     mapping.supplierStayCode(),
@@ -112,6 +114,10 @@ public class DuplicateCandidateService {
 
     private static double round(double value) {
         return Math.round(value * 100) / 100.0;
+    }
+
+    /** (공급사, 숙소 코드) 튜플. 문자열 연결 대신 레코드로 둬야 구분자 충돌이 없다. */
+    private record StayKey(SupplierId supplier, String stayCode) {
     }
 
     private record StayProfile(SupplierId supplier, String stayCode, long internalStayId,
